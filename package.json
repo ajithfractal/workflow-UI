@@ -9,13 +9,15 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.90.21",
+    "@tanstack/react-query-devtools": "^5.91.3",
+    "axios": "^1.6.0",
+    "lucide-react": "^0.294.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "reactflow": "^11.10.1",
-    "axios": "^1.6.0",
     "react-hook-form": "^7.48.2",
-    "zustand": "^4.4.7",
-    "lucide-react": "^0.294.0"
+    "reactflow": "^11.10.1",
+    "zustand": "^4.4.7"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.1",

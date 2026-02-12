@@ -1,4 +1,4 @@
-import { Save, ArrowLeft } from 'lucide-react'
+import { Save, ArrowLeft, Plus } from 'lucide-react'
 import '../../styles/Toolbar.css'
 
 function Toolbar({
@@ -8,6 +8,8 @@ function Toolbar({
   onWorkflowVersionChange,
   onSave,
   onBack,
+  onAddStep,
+  canAddStep,
 }) {
   return (
     <div className="toolbar">
@@ -33,10 +35,18 @@ function Toolbar({
         />
       </div>
 
-      <button className="btn-primary" onClick={onSave}>
-        <Save size={20} />
-        Save Workflow
-      </button>
+      <div className="toolbar-actions">
+        {canAddStep && (
+          <button className="btn-secondary" onClick={onAddStep} title="Add Step">
+            <Plus size={20} />
+            Add Step
+          </button>
+        )}
+        <button className="btn-primary" onClick={onSave}>
+          <Save size={20} />
+          Save Workflow
+        </button>
+      </div>
     </div>
   )
 }

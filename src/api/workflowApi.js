@@ -56,9 +56,11 @@ export const workflowApi = {
     return response.data
   },
 
-  // Add approver to step
-  addApprover: async (stepId, approverData, userId = 'system') => {
-    const response = await api.post(`/workflow-definitions/steps/${stepId}/approvers`, approverData, {
+  // Add approvers to step (accepts array of approvers)
+  addApprovers: async (stepId, approversArray, userId = 'system') => {
+    // Ensure it's always an array
+    const approvers = Array.isArray(approversArray) ? approversArray : [approversArray]
+    const response = await api.post(`/workflow-definitions/steps/${stepId}/approvers`, approvers, {
       params: { createdBy: userId }
     })
     return response.data

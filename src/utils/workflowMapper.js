@@ -47,13 +47,23 @@ export const mapApproverToUI = (backendApprover) => {
  * Convert UI step model to backend StepDefinitionRequest
  */
 export const mapStepToBackend = (uiStep) => {
-  return {
+  const stepData = {
     stepName: uiStep.name,
     stepOrder: uiStep.order,
     approvalType: uiStep.approvalType,
     minApprovals: uiStep.minApprovals,
     slaHours: uiStep.slaHours,
   }
+  
+  // Include approvers if provided (for step creation)
+  if (uiStep.approvers && Array.isArray(uiStep.approvers) && uiStep.approvers.length > 0) {
+    stepData.approvers = uiStep.approvers.map(approver => ({
+      approverType: approver.type || approver.approverType,
+      approverValue: approver.value || approver.approverValue,
+    }))
+  }
+  
+  return stepData
 }
 
 /**
@@ -101,8 +111,20 @@ export const stepsToNodes = (steps, workflowName = 'Workflow') => {
   orders.forEach((order) => {
     const parallelSteps = stepsByOrder[order]
     const stepCount = parallelSteps.length
-    const totalWidth = stepCount * horizontalSpacing
-    const startX = 400 - (totalWidth - nodeWidth) / 2
+    
+    // Calculate positions for parallel steps
+    // Center all steps around x=400
+    let startX
+    if (stepCount === 1) {
+      // Single step: center it
+      startX = 400 - nodeWidth / 2
+    } else {
+      // Multiple parallel steps: distribute them horizontally
+      // Total width = spacing between nodes + width of last node
+      const totalWidth = (stepCount - 1) * horizontalSpacing + nodeWidth
+      // Start from left edge, centered around x=400
+      startX = 400 - totalWidth / 2
+    }
 
     parallelSteps.forEach((step, index) => {
       nodes.push({
@@ -117,6 +139,7 @@ export const stepsToNodes = (steps, workflowName = 'Workflow') => {
           step: step,
           order: step.order,
           isParallel: stepCount > 1,
+          parallelGroupSize: stepCount,
         },
       })
     })
