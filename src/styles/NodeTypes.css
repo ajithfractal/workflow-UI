@@ -1,0 +1,84 @@
+.node {
+  padding: 1rem;
+  border-radius: 0.5rem;
+  min-width: 180px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.node:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  transform: translateY(-2px);
+}
+
+.start-node {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  text-align: center;
+}
+
+.end-node {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: white;
+  text-align: center;
+}
+
+.step-node {
+  background: white;
+  border: 2px solid #3b82f6;
+}
+
+.step-node.parallel {
+  border-color: #f59e0b;
+  background: #fffbeb;
+}
+
+.node-label {
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.node-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.node-title {
+  font-weight: 600;
+  color: #1e293b;
+  font-size: 0.875rem;
+}
+
+.parallel-badge {
+  font-size: 0.75rem;
+  padding: 0.125rem 0.5rem;
+  background: #f59e0b;
+  color: white;
+  border-radius: 9999px;
+}
+
+.node-content {
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.node-info {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.approval-type {
+  padding: 0.125rem 0.5rem;
+  background: #dbeafe;
+  color: #1e40af;
+  border-radius: 0.25rem;
+  font-weight: 500;
+}
+
+.approver-count {
+  color: #64748b;
+}

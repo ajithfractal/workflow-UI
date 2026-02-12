@@ -1,0 +1,25 @@
+.workflow-designer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #f8fafc;
+}
+
+.designer-container {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.designer-canvas {
+  flex: 1;
+  position: relative;
+}
+
+.step-panel {
+  width: 400px;
+  background: white;
+  border-left: 1px solid #e2e8f0;
+  overflow-y: auto;
+  box-shadow: -2px 0 8px rgba(0, 0, 0, 0.1);
+}
