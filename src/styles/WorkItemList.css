@@ -1,0 +1,79 @@
+.work-item-list {
+  padding: 2rem;
+  background: white;
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.work-item-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.work-item-list-header h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0;
+}
+
+.work-item-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.work-item-table thead {
+  background: #f8fafc;
+}
+
+.work-item-table th {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  font-weight: 600;
+  color: #475569;
+  font-size: 0.875rem;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.work-item-table td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 0.875rem;
+  color: #334155;
+}
+
+.work-item-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+.status-draft {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.status-submitted {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.status-in-progress {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.status-completed {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.status-rejected {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.status-unknown {
+  background: #f1f5f9;
+  color: #64748b;
+}

@@ -1,5 +1,14 @@
-import { Save, ArrowLeft, Plus } from 'lucide-react'
-import '../../styles/Toolbar.css'
+import {
+  AppBar,
+  Toolbar as MuiToolbar,
+  TextField,
+  Button,
+  IconButton,
+  Stack,
+  Box,
+  CircularProgress,
+} from '@mui/material'
+import { Save, ArrowBack, Add, List as ListIcon } from '@mui/icons-material'
 
 function Toolbar({
   workflowName,
@@ -10,44 +19,74 @@ function Toolbar({
   onBack,
   onAddStep,
   canAddStep,
+  isSaving,
+  onCreateWorkItem,
+  canCreateWorkItem,
 }) {
   return (
-    <div className="toolbar">
-      <button className="btn-icon" onClick={onBack} title="Back to List">
-        <ArrowLeft size={20} />
-      </button>
+    <AppBar position="static" sx={{ bgcolor: 'background.paper', color: 'text.primary', boxShadow: 1 }}>
+      <MuiToolbar>
+        <IconButton
+          edge="start"
+          color="inherit"
+          onClick={onBack}
+          title="Back to List"
+          sx={{ mr: 2 }}
+        >
+          <ArrowBack />
+        </IconButton>
 
-      <div className="toolbar-workflow-info">
-        <input
-          type="text"
-          className="workflow-name-input"
-          placeholder="Workflow Name"
-          value={workflowName}
-          onChange={(e) => onWorkflowNameChange(e.target.value)}
-        />
-        <input
-          type="number"
-          className="workflow-version-input"
-          placeholder="Version"
-          value={workflowVersion}
-          onChange={(e) => onWorkflowVersionChange(parseInt(e.target.value) || 1)}
-          min="1"
-        />
-      </div>
+        <Box sx={{ flexGrow: 1, display: 'flex', gap: 2, alignItems: 'center' }}>
+          <TextField
+            size="small"
+            placeholder="Workflow Name"
+            value={workflowName}
+            onChange={(e) => onWorkflowNameChange(e.target.value)}
+            sx={{ minWidth: 200 }}
+          />
+          <TextField
+            size="small"
+            type="number"
+            placeholder="Version"
+            value={workflowVersion}
+            onChange={(e) => onWorkflowVersionChange(parseInt(e.target.value) || 1)}
+            inputProps={{ min: 1 }}
+            sx={{ width: 100 }}
+          />
+        </Box>
 
-      <div className="toolbar-actions">
-        {canAddStep && (
-          <button className="btn-secondary" onClick={onAddStep} title="Add Step">
-            <Plus size={20} />
-            Add Step
-          </button>
-        )}
-        <button className="btn-primary" onClick={onSave}>
-          <Save size={20} />
-          Save Workflow
-        </button>
-      </div>
-    </div>
+        <Stack direction="row" spacing={1}>
+          {canCreateWorkItem && onCreateWorkItem && (
+            <Button
+              variant="outlined"
+              startIcon={<ListIcon />}
+              onClick={onCreateWorkItem}
+              title="Create Work Item"
+            >
+              Create Work Item
+            </Button>
+          )}
+          {canAddStep && (
+            <Button
+              variant="outlined"
+              startIcon={<Add />}
+              onClick={onAddStep}
+              title="Add Step"
+            >
+              Add Step
+            </Button>
+          )}
+          <Button
+            variant="contained"
+            startIcon={isSaving ? <CircularProgress size={16} color="inherit" /> : <Save />}
+            onClick={onSave}
+            disabled={isSaving}
+          >
+            {isSaving ? 'Saving...' : 'Save Workflow'}
+          </Button>
+        </Stack>
+      </MuiToolbar>
+    </AppBar>
   )
 }
 

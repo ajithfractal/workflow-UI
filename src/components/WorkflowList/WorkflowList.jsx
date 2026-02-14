@@ -1,19 +1,43 @@
-import { Plus, Edit, Trash2 } from 'lucide-react'
+import {
+  Box,
+  Paper,
+  Typography,
+  Button,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  IconButton,
+  Chip,
+  Stack,
+} from '@mui/material'
+import { Add, Edit, Delete, List as ListIcon } from '@mui/icons-material'
 import { useWorkflows } from '../../hooks/queries/useWorkflows'
-import '../../styles/WorkflowList.css'
+import { useModal } from '../../hooks/useModal'
+import Loader from '../Loader/Loader'
+import Modal from '../Modal/Modal'
+import WorkItemList from '../WorkItemList/WorkItemList'
 
-function WorkflowList({ onCreateWorkflow, onEditWorkflow }) {
+function WorkflowList({ onCreateWorkflow, onEditWorkflow, onViewWorkItems, onCreateWorkItem, onViewWorkItem }) {
   const { data: workflows = [], isLoading, error } = useWorkflows()
+  const { modal, showAlert, showConfirm, closeModal } = useModal()
 
   const handleDelete = async (workflowId) => {
-    if (window.confirm('Are you sure you want to delete this workflow?')) {
-      // Note: Delete endpoint may need to be implemented in backend
-      alert('Delete functionality not yet implemented')
-    }
+    showConfirm(
+      'Are you sure you want to delete this workflow?',
+      () => {
+        // Note: Delete endpoint may need to be implemented in backend
+        showAlert('Delete functionality not yet implemented', 'info', 'Information')
+      },
+      'Delete Workflow',
+      'warning'
+    )
   }
 
   if (isLoading) {
-    return <div className="loading">Loading workflows...</div>
+    return <Loader size="large" text="Loading workflows..." />
   }
 
   if (error) {
@@ -21,65 +45,126 @@ function WorkflowList({ onCreateWorkflow, onEditWorkflow }) {
   }
 
   return (
-    <div className="workflow-list">
-      <div className="workflow-list-header">
-        <h2>Workflows</h2>
-        <button className="btn-primary" onClick={onCreateWorkflow}>
-          <Plus size={20} />
-          Create New Workflow
-        </button>
-      </div>
+    <Box>
+      <Paper sx={{ p: 3, mb: 3 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+          <Typography variant="h5" component="h2">
+            Workflows
+          </Typography>
+          <Stack direction="row" spacing={2}>
+            {onCreateWorkItem && (
+              <Button
+                variant="contained"
+                startIcon={<Add />}
+                onClick={onCreateWorkItem}
+              >
+                Create Workflow Instance
+              </Button>
+            )}
+            <Button
+              variant="contained"
+              startIcon={<Add />}
+              onClick={onCreateWorkflow}
+            >
+              Create New Workflow
+            </Button>
+          </Stack>
+        </Box>
 
-      {workflows.length === 0 ? (
-        <div className="empty-state">
-          <p>No workflows found. Create your first workflow to get started.</p>
-        </div>
-      ) : (
-        <table className="workflow-table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Version</th>
-              <th>Status</th>
-              <th>Steps</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {Array.isArray(workflows) && workflows.map((workflow) => (
-              <tr key={workflow.id || workflow.workflowId}>
-                <td>{workflow.name}</td>
-                <td>{workflow.version}</td>
-                <td>
-                  <span className={`status-badge ${workflow.isActive ? 'active' : 'inactive'}`}>
-                    {workflow.isActive ? 'Active' : 'Inactive'}
-                  </span>
-                </td>
-                <td>{workflow.steps?.length || 0}</td>
-                <td>
-                  <div className="action-buttons">
-                    <button
-                      className="btn-icon"
-                      onClick={() => onEditWorkflow(workflow.id || workflow.workflowId)}
-                      title="Edit"
-                    >
-                      <Edit size={16} />
-                    </button>
-                    <button
-                      className="btn-icon btn-danger"
-                      onClick={() => handleDelete(workflow.id || workflow.workflowId)}
-                      title="Delete"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </div>
+        {workflows.length === 0 ? (
+          <Box sx={{ textAlign: 'center', py: 4 }}>
+            <Typography variant="body1" color="text.secondary">
+              No workflows found. Create your first workflow to get started.
+            </Typography>
+          </Box>
+        ) : (
+          <TableContainer>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Name</TableCell>
+                  <TableCell>Version</TableCell>
+                  <TableCell>Status</TableCell>
+                  <TableCell>Steps</TableCell>
+                  <TableCell align="right">Actions</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {Array.isArray(workflows) && workflows.map((workflow) => (
+                  <TableRow key={workflow.id || workflow.workflowId} hover>
+                    <TableCell>{workflow.name}</TableCell>
+                    <TableCell>{workflow.version}</TableCell>
+                    <TableCell>
+                      <Chip
+                        label={workflow.isActive ? 'Active' : 'Inactive'}
+                        color={workflow.isActive ? 'success' : 'default'}
+                        size="small"
+                      />
+                    </TableCell>
+                    <TableCell>{workflow.steps?.length || 0}</TableCell>
+                    <TableCell align="right">
+                      <Stack direction="row" spacing={1} justifyContent="flex-end">
+                        <IconButton
+                          size="small"
+                          onClick={() => onEditWorkflow(workflow.id || workflow.workflowId)}
+                          title="Edit Workflow"
+                          color="primary"
+                        >
+                          <Edit fontSize="small" />
+                        </IconButton>
+                        {onViewWorkItems && (
+                          <IconButton
+                            size="small"
+                            onClick={() => onViewWorkItems(workflow.id || workflow.workflowId)}
+                            title="View Work Items"
+                            color="primary"
+                          >
+                            <ListIcon fontSize="small" />
+                          </IconButton>
+                        )}
+                        <IconButton
+                          size="small"
+                          onClick={() => handleDelete(workflow.id || workflow.workflowId)}
+                          title="Delete"
+                          color="error"
+                        >
+                          <Delete fontSize="small" />
+                        </IconButton>
+                      </Stack>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
+      </Paper>
+      
+      {/* Show all work items below workflows */}
+      <Box sx={{ mt: 4, pt: 3, borderTop: 2, borderColor: 'divider' }}>
+        <Typography variant="h5" component="h2" sx={{ mb: 2 }}>
+          All Work Items
+        </Typography>
+        {onViewWorkItem && (
+          <WorkItemList
+            workflowId={null}
+            onCreateWorkItem={onCreateWorkItem}
+            onViewWorkItem={onViewWorkItem}
+            onBack={null}
+          />
+        )}
+      </Box>
+
+      <Modal
+        isOpen={modal.isOpen}
+        onClose={closeModal}
+        title={modal.title}
+        message={modal.message}
+        type={modal.type}
+        onConfirm={modal.onConfirm}
+        showCancel={modal.showCancel}
+      />
+    </Box>
   )
 }
 

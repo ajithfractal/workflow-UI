@@ -8,15 +8,18 @@ import ReactFlow, {
   addEdge,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
+import { Box, Paper, Alert } from '@mui/material'
 import { useWorkflow, useCreateWorkflow } from '../../hooks/queries/useWorkflows'
 import useWorkflowStore from '../../hooks/useWorkflow'
+import { useModal } from '../../hooks/useModal'
 import { stepsToNodes, stepsToEdges } from '../../utils/workflowMapper'
 import StartNode from './NodeTypes/StartNode'
 import StepNode from './NodeTypes/StepNode'
 import EndNode from './NodeTypes/EndNode'
 import StepForm from '../StepForm/StepForm'
 import Toolbar from './Toolbar'
-import '../../styles/WorkflowDesigner.css'
+import Loader from '../Loader/Loader'
+import Modal from '../Modal/Modal'
 
 const nodeTypes = {
   startNode: StartNode,
@@ -24,11 +27,12 @@ const nodeTypes = {
   endNode: EndNode,
 }
 
-function WorkflowDesigner({ workflowId, onBack }) {
+function WorkflowDesigner({ workflowId, onBack, onCreateWorkItem }) {
   // Use React Query for data fetching
   const { data: workflow, isLoading, error } = useWorkflow(workflowId)
   const createWorkflowMutation = useCreateWorkflow()
   const { selectedStep, setSelectedStep } = useWorkflowStore()
+  const { modal, showAlert, closeModal } = useModal()
 
   const [nodes, setNodes, onNodesChange] = useNodesState([])
   const [edges, setEdges, onEdgesChange] = useEdgesState([])
@@ -96,16 +100,16 @@ function WorkflowDesigner({ workflowId, onBack }) {
         })
         // Note: After creation, the workflow list will be invalidated
         // User should navigate back and select the new workflow
-        alert('Workflow created successfully! Please refresh or navigate back to see it.')
+        showAlert('Workflow created successfully! Please refresh or navigate back to see it.', 'success', 'Success')
       } catch (err) {
-        alert('Failed to create workflow: ' + err.message)
+        showAlert('Failed to create workflow: ' + err.message, 'error', 'Error')
       }
     }
   }
 
   const handleAddStep = () => {
     if (!workflow?.id) {
-      alert('Please save the workflow first before adding steps')
+      showAlert('Please save the workflow first before adding steps', 'warning', 'Warning')
       return
     }
     setSelectedStep(null)
@@ -118,15 +122,19 @@ function WorkflowDesigner({ workflowId, onBack }) {
   }
 
   if (isLoading) {
-    return <div className="loading">Loading workflow...</div>
+    return <Loader size="large" text="Loading workflow..." />
   }
 
   if (error) {
-    return <div className="error">Error: {error.message || 'Failed to load workflow'}</div>
+    return (
+      <Box sx={{ p: 3 }}>
+        <Alert severity="error">Error: {error.message || 'Failed to load workflow'}</Alert>
+      </Box>
+    )
   }
 
   return (
-    <div className="workflow-designer">
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
       <Toolbar
         workflowName={workflowName}
         workflowVersion={workflowVersion}
@@ -136,10 +144,13 @@ function WorkflowDesigner({ workflowId, onBack }) {
         onBack={onBack}
         onAddStep={handleAddStep}
         canAddStep={!!workflow?.id}
+        isSaving={createWorkflowMutation.isPending}
+        onCreateWorkItem={onCreateWorkItem}
+        canCreateWorkItem={!!workflow?.id && workflow?.isActive}
       />
 
-      <div className="designer-container">
-        <div className="designer-canvas">
+      <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+        <Box sx={{ flex: 1, position: 'relative' }}>
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -148,25 +159,42 @@ function WorkflowDesigner({ workflowId, onBack }) {
             onConnect={onConnect}
             onNodeClick={onNodeClick}
             nodeTypes={nodeTypes}
+            defaultEdgeOptions={{
+              type: 'smoothstep',
+              markerEnd: {
+                type: 'arrowclosed',
+                color: '#3b82f6',
+              },
+              style: { strokeWidth: 2, stroke: '#3b82f6' },
+            }}
             fitView
           >
             <Background />
             <Controls />
             <MiniMap />
           </ReactFlow>
-        </div>
+        </Box>
 
         {showStepForm && (
-          <div className="step-panel">
+          <Box sx={{ width: 400, borderLeft: 1, borderColor: 'divider', overflow: 'auto' }}>
             <StepForm
               workflowId={workflow?.id}
               step={selectedStep}
               onClose={handleStepFormClose}
             />
-          </div>
+          </Box>
         )}
-      </div>
-    </div>
+      </Box>
+      <Modal
+        isOpen={modal.isOpen}
+        onClose={closeModal}
+        title={modal.title}
+        message={modal.message}
+        type={modal.type}
+        onConfirm={modal.onConfirm}
+        showCancel={modal.showCancel}
+      />
+    </Box>
   )
 }
 

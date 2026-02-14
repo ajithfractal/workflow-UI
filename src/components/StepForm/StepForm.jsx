@@ -1,11 +1,31 @@
 import { useState, useEffect } from 'react'
-import { useForm } from 'react-hook-form'
-import { X, Plus, Trash2 } from 'lucide-react'
+import { useForm, Controller } from 'react-hook-form'
+import {
+  Card,
+  CardHeader,
+  CardContent,
+  IconButton,
+  TextField,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  Button,
+  Stack,
+  Box,
+  Typography,
+  Chip,
+  CircularProgress,
+  FormHelperText,
+} from '@mui/material'
+import { Close, Add, Delete } from '@mui/icons-material'
 import { useWorkflow } from '../../hooks/queries/useWorkflows'
 import { useAddStep, useUpdateStep } from '../../hooks/queries/useSteps'
 import { useAddApprovers, useRemoveApprover } from '../../hooks/queries/useApprovers'
 import useWorkflowStore from '../../hooks/useWorkflow'
-import '../../styles/StepForm.css'
+import { useModal } from '../../hooks/useModal'
+import Loader from '../Loader/Loader'
+import Modal from '../Modal/Modal'
 
 const APPROVAL_TYPES = ['ALL', 'ANY', 'N_OF_M']
 const APPROVER_TYPES = ['USER', 'ROLE', 'MANAGER']
@@ -17,6 +37,9 @@ function StepForm({ workflowId, step, onClose }) {
   const updateStepMutation = useUpdateStep()
   const addApproversMutation = useAddApprovers()
   const removeApproverMutation = useRemoveApprover()
+  
+  // Modal hook
+  const { modal, showAlert, closeModal } = useModal()
   
   // UI state
   const { setSelectedStep } = useWorkflowStore()
@@ -33,6 +56,7 @@ function StepForm({ workflowId, step, onClose }) {
     watch,
     setValue,
     reset,
+    control,
   } = useForm({
     defaultValues: {
       name: '',
@@ -85,11 +109,15 @@ function StepForm({ workflowId, step, onClose }) {
     }
   }, [workflow?.steps, step?.id])
 
+  const isSaving = addStepMutation.isPending || updateStepMutation.isPending
+  const isAddingApprovers = addApproversMutation.isPending
+  const isRemovingApprover = removeApproverMutation.isPending
+
   const onSubmit = async (data) => {
     try {
       if (isNewStep) {
         if (!workflowId) {
-          alert('Workflow must be created first')
+          showAlert('Workflow must be created first', 'warning', 'Warning')
           return
         }
         // Include approvers from both saved approvers and pending approvers
@@ -117,7 +145,7 @@ function StepForm({ workflowId, step, onClose }) {
       }
       onClose()
     } catch (error) {
-      alert('Failed to save step: ' + error.message)
+      showAlert('Failed to save step: ' + error.message, 'error', 'Error')
     }
   }
 
@@ -131,7 +159,7 @@ function StepForm({ workflowId, step, onClose }) {
     e?.preventDefault()
     
     if (!newApprover.value.trim()) {
-      alert('Please enter an approver value')
+      showAlert('Please enter an approver value', 'warning', 'Validation Error')
       return
     }
 
@@ -166,9 +194,9 @@ function StepForm({ workflowId, step, onClose }) {
 
     // For existing steps, add approvers via API
     if (!step?.id) {
-      alert('Step ID is required')
-      return
-    }
+      showAlert('Step ID is required', 'error', 'Error')
+          return
+        }
 
     try {
       // Convert pending approvers to API format
@@ -196,10 +224,10 @@ function StepForm({ workflowId, step, onClose }) {
       setPendingApprovers([])
       setShowApproverForm(false)
       setNewApprover({ type: 'USER', value: '' })
-    } catch (error) {
-      alert('Failed to add approvers: ' + error.message)
+      } catch (error) {
+      showAlert('Failed to add approvers: ' + error.message, 'error', 'Error')
+      }
     }
-  }
 
   const handleCancelApprover = () => {
     setShowApproverForm(false)
@@ -214,206 +242,243 @@ function StepForm({ workflowId, step, onClose }) {
       // Optimistically update local state
       setApprovers(approvers.filter((a) => a.id !== approverId))
     } catch (error) {
-      alert('Failed to remove approver: ' + error.message)
+      showAlert('Failed to remove approver: ' + error.message, 'error', 'Error')
     }
   }
 
   return (
-    <div className="step-form">
-      <div className="step-form-header">
-        <h3>{isNewStep ? 'New Step' : 'Edit Step'}</h3>
-        <button className="btn-icon" onClick={onClose}>
-          <X size={20} />
-        </button>
-      </div>
-
-      <form onSubmit={handleSubmit(onSubmit)} className="step-form-body">
-        <div className="form-group">
-          <label>Step Name *</label>
-          <input
-            {...register('name', { required: 'Step name is required' })}
-            placeholder="e.g., Finance Approval"
-          />
-          {errors.name && <span className="error-text">{errors.name.message}</span>}
-        </div>
-
-        <div className="form-group">
-          <label>Step Order *</label>
-          <input
-            type="number"
-            {...register('order', {
-              required: 'Step order is required',
-              min: { value: 1, message: 'Order must be at least 1' },
-            })}
-            placeholder="1"
-          />
-          {errors.order && <span className="error-text">{errors.order.message}</span>}
-          <small>Steps with same order run in parallel</small>
-        </div>
-
-        <div className="form-group">
-          <label>Approval Type *</label>
-          <select {...register('approvalType', { required: true })}>
-            {APPROVAL_TYPES.map((type) => (
-              <option key={type} value={type}>
-                {type}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {approvalType === 'N_OF_M' && (
-          <div className="form-group">
-            <label>Min Approvals *</label>
-            <input
-              type="number"
-              {...register('minApprovals', {
-                required: 'Min approvals is required for N_OF_M',
-                min: { value: 1, message: 'Must be at least 1' },
-              })}
-              placeholder="2"
+    <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <CardHeader
+        title={isNewStep ? 'New Step' : 'Edit Step'}
+        action={
+          <IconButton onClick={onClose} size="small">
+            <Close />
+          </IconButton>
+        }
+      />
+      <CardContent sx={{ flexGrow: 1, overflow: 'auto' }}>
+        <form onSubmit={handleSubmit(onSubmit)}>
+          <Stack spacing={3}>
+            <TextField
+              label="Step Name"
+              required
+              fullWidth
+              {...register('name', { required: 'Step name is required' })}
+              placeholder="e.g., Finance Approval"
+              error={!!errors.name}
+              helperText={errors.name?.message}
             />
-            {errors.minApprovals && (
-              <span className="error-text">{errors.minApprovals.message}</span>
-            )}
-          </div>
-        )}
 
-        <div className="form-group">
-          <label>SLA Hours</label>
-          <input
-            type="number"
-            {...register('slaHours', { min: { value: 1, message: 'Must be positive' } })}
-            placeholder="24"
-          />
-          {errors.slaHours && <span className="error-text">{errors.slaHours.message}</span>}
-        </div>
+            <TextField
+              label="Step Order"
+              type="number"
+              required
+              fullWidth
+              {...register('order', {
+                required: 'Step order is required',
+                min: { value: 1, message: 'Order must be at least 1' },
+              })}
+              placeholder="1"
+              error={!!errors.order}
+              helperText={errors.order?.message || 'Steps with same order run in parallel'}
+            />
 
-        <div className="form-group">
-          <label>Approvers</label>
-          <div className="approvers-list">
-            {/* Existing saved approvers */}
-            {approvers.length > 0 && approvers.map((approver) => (
-              <div key={approver.id} className="approver-item">
-                <span>
-                  {approver.value} ({approver.type})
-                </span>
-                <button
-                  type="button"
-                  className="btn-icon btn-danger"
-                  onClick={() => handleRemoveApprover(approver.id)}
-                >
-                  <Trash2 size={16} />
-                </button>
-              </div>
-            ))}
-
-            {/* Pending approvers (not yet saved) */}
-            {pendingApprovers.length > 0 && pendingApprovers.map((pendingApprover) => (
-              <div key={pendingApprover.id} className="approver-item approver-item-pending">
-                <span>
-                  {pendingApprover.value} ({pendingApprover.type})
-                  <span className="pending-badge">Pending</span>
-                </span>
-                <button
-                  type="button"
-                  className="btn-icon btn-danger"
-                  onClick={() => handleRemovePendingApprover(pendingApprover.id)}
-                >
-                  <Trash2 size={16} />
-                </button>
-              </div>
-            ))}
-            
-            {/* Add approver form - show for both new and existing steps */}
-            {showApproverForm && (
-              <div className="approver-form">
-                <div className="approver-form-row">
-                  <select
-                    value={newApprover.type}
-                    onChange={(e) => setNewApprover({ ...newApprover, type: e.target.value })}
-                    className="approver-type-select"
-                  >
-                    {APPROVER_TYPES.map((type) => (
-                      <option key={type} value={type}>
+            <FormControl fullWidth required>
+              <InputLabel>Approval Type</InputLabel>
+              <Controller
+                name="approvalType"
+                control={control}
+                rules={{ required: true }}
+                render={({ field }) => (
+                  <Select {...field} label="Approval Type">
+                    {APPROVAL_TYPES.map((type) => (
+                      <MenuItem key={type} value={type}>
                         {type}
-                      </option>
+                      </MenuItem>
                     ))}
-                  </select>
-                  <input
-                    type="text"
-                    value={newApprover.value}
-                    onChange={(e) => setNewApprover({ ...newApprover, value: e.target.value })}
-                    placeholder="Enter approver value"
-                    className="approver-value-input"
-                    onKeyPress={(e) => {
-                      if (e.key === 'Enter') {
-                        handleAddToPending(e)
-                      }
-                    }}
-                  />
-                </div>
-                <div className="approver-form-actions">
-                  <button
-                    type="button"
-                    className="btn-small btn-primary"
-                    onClick={handleAddToPending}
-                  >
-                    Add to List
-                  </button>
-                  {pendingApprovers.length > 0 && !isNewStep && (
-                    <button
-                      type="button"
-                      className="btn-small btn-success"
-                      onClick={handleSubmitPendingApprovers}
-                    >
-                      Submit ({pendingApprovers.length})
-                    </button>
-                  )}
-                  {pendingApprovers.length > 0 && isNewStep && (
-                    <span className="pending-info">
-                      {pendingApprovers.length} approver{pendingApprovers.length !== 1 ? 's' : ''} will be added with step
-                    </span>
-                  )}
-                  <button
-                    type="button"
-                    className="btn-small btn-secondary"
-                    onClick={handleCancelApprover}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            )}
-            
-            {/* Empty state and add button */}
-            {!showApproverForm && approvers.length === 0 && pendingApprovers.length === 0 && (
-              <p className="empty-text">No approvers added yet</p>
-            )}
-            
-            {!showApproverForm && (
-              <button
-                type="button"
-                className="btn-add-approver"
-                onClick={handleAddApproverClick}
-              >
-                <Plus size={16} />
-                Add Approver
-              </button>
-            )}
-          </div>
-        </div>
+                  </Select>
+                )}
+              />
+            </FormControl>
 
-        <div className="form-actions">
-          <button type="submit" className="btn-primary">
-            {isNewStep ? 'Create Step' : 'Save Changes'}
-          </button>
-          <button type="button" className="btn-secondary" onClick={onClose}>
-            Cancel
-          </button>
-        </div>
-      </form>
-    </div>
+            {approvalType === 'N_OF_M' && (
+              <TextField
+                label="Min Approvals"
+                type="number"
+                required
+                fullWidth
+                {...register('minApprovals', {
+                  required: 'Min approvals is required for N_OF_M',
+                  min: { value: 1, message: 'Must be at least 1' },
+                })}
+                placeholder="2"
+                error={!!errors.minApprovals}
+                helperText={errors.minApprovals?.message}
+              />
+            )}
+
+            <TextField
+              label="SLA Hours"
+              type="number"
+              fullWidth
+              {...register('slaHours', { min: { value: 1, message: 'Must be positive' } })}
+              placeholder="24"
+              error={!!errors.slaHours}
+              helperText={errors.slaHours?.message}
+            />
+
+            <Box>
+              <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                Approvers
+              </Typography>
+              <Stack spacing={1}>
+                {/* Existing saved approvers */}
+                {approvers.length > 0 && approvers.map((approver) => (
+                  <Chip
+                    key={approver.id}
+                    label={`${approver.value} (${approver.type})`}
+                    onDelete={() => handleRemoveApprover(approver.id)}
+                    disabled={isRemovingApprover}
+                    deleteIcon={
+                      isRemovingApprover ? (
+                        <CircularProgress size={16} />
+                      ) : (
+                        <Delete />
+                      )
+                    }
+                  />
+                ))}
+
+                {/* Pending approvers */}
+                {pendingApprovers.length > 0 && pendingApprovers.map((pendingApprover) => (
+                  <Chip
+                    key={pendingApprover.id}
+                    label={`${pendingApprover.value} (${pendingApprover.type})`}
+                    onDelete={() => handleRemovePendingApprover(pendingApprover.id)}
+                    color="warning"
+                    variant="outlined"
+                    deleteIcon={<Delete />}
+                  />
+                ))}
+
+                {/* Add approver form */}
+                {showApproverForm && (
+                  <Box sx={{ p: 2, border: 1, borderColor: 'divider', borderRadius: 1 }}>
+                    <Stack spacing={2}>
+                      <Stack direction="row" spacing={2}>
+                        <FormControl sx={{ minWidth: 120 }}>
+                          <InputLabel>Type</InputLabel>
+                          <Select
+                            value={newApprover.type}
+                            onChange={(e) => setNewApprover({ ...newApprover, type: e.target.value })}
+                            label="Type"
+                          >
+                            {APPROVER_TYPES.map((type) => (
+                              <MenuItem key={type} value={type}>
+                                {type}
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                        <TextField
+                          fullWidth
+                          value={newApprover.value}
+                          onChange={(e) => setNewApprover({ ...newApprover, value: e.target.value })}
+                          placeholder="Enter approver value"
+                          onKeyPress={(e) => {
+                            if (e.key === 'Enter') {
+                              handleAddToPending(e)
+                            }
+                          }}
+                        />
+                      </Stack>
+                      <Stack direction="row" spacing={1} flexWrap="wrap">
+                        <Button
+                          size="small"
+                          variant="contained"
+                          onClick={handleAddToPending}
+                        >
+                          Add to List
+                        </Button>
+                        {pendingApprovers.length > 0 && !isNewStep && (
+                          <Button
+                            size="small"
+                            variant="contained"
+                            color="success"
+                            onClick={handleSubmitPendingApprovers}
+                            disabled={isAddingApprovers}
+                            startIcon={isAddingApprovers ? <CircularProgress size={16} /> : null}
+                          >
+                            {isAddingApprovers ? 'Adding...' : `Submit (${pendingApprovers.length})`}
+                          </Button>
+                        )}
+                        {pendingApprovers.length > 0 && isNewStep && (
+                          <Typography variant="caption" color="text.secondary" sx={{ alignSelf: 'center', ml: 1 }}>
+                            {pendingApprovers.length} approver{pendingApprovers.length !== 1 ? 's' : ''} will be added with step
+                          </Typography>
+                        )}
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          onClick={handleCancelApprover}
+                        >
+                          Cancel
+                        </Button>
+                      </Stack>
+                    </Stack>
+                  </Box>
+                )}
+
+                {/* Empty state and add button */}
+                {!showApproverForm && approvers.length === 0 && pendingApprovers.length === 0 && (
+                  <Typography variant="body2" color="text.secondary">
+                    No approvers added yet
+                  </Typography>
+                )}
+
+                {!showApproverForm && (
+                  <Button
+                    startIcon={<Add />}
+                    variant="outlined"
+                    onClick={handleAddApproverClick}
+                    size="small"
+                  >
+                    Add Approver
+                  </Button>
+                )}
+              </Stack>
+            </Box>
+
+            <Stack direction="row" spacing={2} justifyContent="flex-end">
+              <Button
+                variant="outlined"
+                onClick={onClose}
+                disabled={isSaving}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                variant="contained"
+                disabled={isSaving}
+                startIcon={isSaving ? <CircularProgress size={16} /> : null}
+              >
+                {isSaving ? (isNewStep ? 'Creating...' : 'Saving...') : (isNewStep ? 'Create Step' : 'Save Changes')}
+              </Button>
+            </Stack>
+          </Stack>
+        </form>
+      </CardContent>
+      <Modal
+        isOpen={modal.isOpen}
+        onClose={closeModal}
+        title={modal.title}
+        message={modal.message}
+        type={modal.type}
+        onConfirm={modal.onConfirm}
+        showCancel={modal.showCancel}
+      />
+    </Card>
   )
 }
 

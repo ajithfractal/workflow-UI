@@ -174,6 +174,11 @@ export const stepsToEdges = (steps) => {
         source: 'start',
         target: `step-${step.id}`,
         type: 'smoothstep',
+        markerEnd: {
+          type: 'arrowclosed',
+          color: '#3b82f6',
+        },
+        style: { strokeWidth: 2, stroke: '#3b82f6' },
       })
     })
   }
@@ -193,6 +198,11 @@ export const stepsToEdges = (steps) => {
           source: `step-${currentStep.id}`,
           target: `step-${nextStep.id}`,
           type: 'smoothstep',
+          markerEnd: {
+            type: 'arrowclosed',
+            color: '#3b82f6',
+          },
+          style: { strokeWidth: 2, stroke: '#3b82f6' },
         })
       })
     })
@@ -208,9 +218,31 @@ export const stepsToEdges = (steps) => {
         source: `step-${step.id}`,
         target: 'end',
         type: 'smoothstep',
+        markerEnd: {
+          type: 'arrowclosed',
+          color: '#3b82f6',
+        },
+        style: { strokeWidth: 2, stroke: '#3b82f6' },
       })
     })
   }
 
   return edges
+}
+
+/**
+ * Convert step instances (from work item response) to step definitions format
+ * Step instances have: stepId, stepName, stepOrder, status
+ * Step definitions have: id, name, order
+ */
+export const stepInstancesToStepDefinitions = (stepInstances) => {
+  if (!Array.isArray(stepInstances)) return []
+  
+  return stepInstances.map((stepInstance) => ({
+    id: stepInstance.stepId,
+    name: stepInstance.stepName,
+    order: stepInstance.stepOrder,
+    status: stepInstance.status, // COMPLETED, IN_PROGRESS, NOT_STARTED
+    stepInstance: stepInstance, // Keep reference to original step instance
+  }))
 }
