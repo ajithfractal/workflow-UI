@@ -34,13 +34,15 @@ export const useWorkflows = () => {
 
 // Get single workflow
 export const useWorkflow = (workflowId) => {
+  // Ensure workflowId is a string, not an object
+  const id = typeof workflowId === 'string' ? workflowId : workflowId?.workflowId || workflowId?.id || null
   return useQuery({
-    queryKey: workflowKeys.detail(workflowId),
+    queryKey: workflowKeys.detail(id),
     queryFn: async () => {
-      const backendWorkflow = await workflowApi.getWorkflow(workflowId)
+      const backendWorkflow = await workflowApi.getWorkflow(id)
       return mapWorkflowToUI(backendWorkflow)
     },
-    enabled: !!workflowId,
+    enabled: !!id && typeof id === 'string',
   })
 }
 
@@ -52,19 +54,53 @@ export const useCreateWorkflow = () => {
     mutationFn: async ({ name, version, userId = 'system' }) => {
       return await workflowApi.createWorkflow(name, version, userId)
     },
-    onSuccess: (workflowId) => {
+    onSuccess: (response) => {
       // Invalidate workflows list
       queryClient.invalidateQueries({ queryKey: workflowKeys.lists() })
+      // Extract the actual workflow ID from the response
+      const newId = typeof response === 'string'
+        ? response
+        : response?.workflowId || response?.id || null
       // Optionally prefetch the new workflow
-      if (workflowId) {
+      if (newId) {
         queryClient.prefetchQuery({
-          queryKey: workflowKeys.detail(workflowId),
+          queryKey: workflowKeys.detail(newId),
           queryFn: async () => {
-            const backendWorkflow = await workflowApi.getWorkflow(workflowId)
+            const backendWorkflow = await workflowApi.getWorkflow(newId)
             return mapWorkflowToUI(backendWorkflow)
           },
         })
       }
+    },
+  })
+}
+
+// Update workflow mutation
+export const useUpdateWorkflow = () => {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: async ({ workflowId, updateData, userId = 'system' }) => {
+      return await workflowApi.updateWorkflow(workflowId, updateData, userId)
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: workflowKeys.detail(variables.workflowId) })
+      queryClient.invalidateQueries({ queryKey: workflowKeys.lists() })
+    },
+  })
+}
+
+// Delete workflow mutation
+export const useDeleteWorkflow = () => {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: async ({ workflowId }) => {
+      return await workflowApi.deleteWorkflow(workflowId)
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: workflowKeys.detail(variables.workflowId) })
+      queryClient.invalidateQueries({ queryKey: workflowKeys.lists() })
     },
   })
 }

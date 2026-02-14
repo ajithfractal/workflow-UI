@@ -12,9 +12,10 @@ import {
   IconButton,
   Chip,
   Stack,
+  CircularProgress,
 } from '@mui/material'
 import { Add, Edit, Delete, List as ListIcon } from '@mui/icons-material'
-import { useWorkflows } from '../../hooks/queries/useWorkflows'
+import { useWorkflows, useDeleteWorkflow } from '../../hooks/queries/useWorkflows'
 import { useModal } from '../../hooks/useModal'
 import Loader from '../Loader/Loader'
 import Modal from '../Modal/Modal'
@@ -22,14 +23,19 @@ import WorkItemList from '../WorkItemList/WorkItemList'
 
 function WorkflowList({ onCreateWorkflow, onEditWorkflow, onViewWorkItems, onCreateWorkItem, onViewWorkItem }) {
   const { data: workflows = [], isLoading, error } = useWorkflows()
+  const deleteWorkflowMutation = useDeleteWorkflow()
   const { modal, showAlert, showConfirm, closeModal } = useModal()
 
-  const handleDelete = async (workflowId) => {
+  const handleDelete = (workflowId, workflowName) => {
     showConfirm(
-      'Are you sure you want to delete this workflow?',
-      () => {
-        // Note: Delete endpoint may need to be implemented in backend
-        showAlert('Delete functionality not yet implemented', 'info', 'Information')
+      `Are you sure you want to delete the workflow "${workflowName || workflowId}"? This action cannot be undone.`,
+      async () => {
+        try {
+          await deleteWorkflowMutation.mutateAsync({ workflowId })
+          showAlert('Workflow deleted successfully!', 'success', 'Success')
+        } catch (error) {
+          showAlert('Failed to delete workflow: ' + (error.message || 'Unknown error'), 'error', 'Error')
+        }
       },
       'Delete Workflow',
       'warning'
@@ -124,11 +130,16 @@ function WorkflowList({ onCreateWorkflow, onEditWorkflow, onViewWorkItems, onCre
                         )}
                         <IconButton
                           size="small"
-                          onClick={() => handleDelete(workflow.id || workflow.workflowId)}
-                          title="Delete"
+                          onClick={() => handleDelete(workflow.id || workflow.workflowId, workflow.name)}
+                          title="Delete Workflow"
                           color="error"
+                          disabled={deleteWorkflowMutation.isPending}
                         >
-                          <Delete fontSize="small" />
+                          {deleteWorkflowMutation.isPending ? (
+                            <CircularProgress size={16} />
+                          ) : (
+                            <Delete fontSize="small" />
+                          )}
                         </IconButton>
                       </Stack>
                     </TableCell>

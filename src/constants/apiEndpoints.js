@@ -14,6 +14,8 @@ export const WORKFLOW_ENDPOINTS = {
   LIST: `${API_BASE}/workflow-definitions`,
   GET: (id) => `${API_BASE}/workflow-definitions/${id}`,
   CREATE: `${API_BASE}/workflow-definitions`,
+  UPDATE: (id) => `${API_BASE}/workflow-definitions/${id}`,
+  DELETE: (id) => `${API_BASE}/workflow-definitions/${id}`,
   ACTIVATE: (id) => `${API_BASE}/workflow-definitions/${id}/activate`,
   DEACTIVATE: (id) => `${API_BASE}/workflow-definitions/${id}/deactivate`,
 }

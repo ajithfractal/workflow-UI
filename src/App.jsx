@@ -81,6 +81,10 @@ function App() {
             workflowId={selectedWorkflowId}
             onBack={handleBackToList}
             onCreateWorkItem={handleCreateWorkItem}
+            onNavigateToWorkflow={(newWorkflowId) => {
+              setSelectedWorkflowId(newWorkflowId)
+              // view stays as 'designer'
+            }}
           />
         )}
         {view === 'workItems' && (

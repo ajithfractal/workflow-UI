@@ -17,10 +17,11 @@ import {
   Chip,
   CircularProgress,
   FormHelperText,
+  Alert,
 } from '@mui/material'
-import { Close, Add, Delete } from '@mui/icons-material'
+import { Close, Add, Delete, Lock } from '@mui/icons-material'
 import { useWorkflow } from '../../hooks/queries/useWorkflows'
-import { useAddStep, useUpdateStep } from '../../hooks/queries/useSteps'
+import { useAddStep, useUpdateStep, useDeleteStep } from '../../hooks/queries/useSteps'
 import { useAddApprovers, useRemoveApprover } from '../../hooks/queries/useApprovers'
 import useWorkflowStore from '../../hooks/useWorkflow'
 import { useModal } from '../../hooks/useModal'
@@ -30,16 +31,17 @@ import Modal from '../Modal/Modal'
 const APPROVAL_TYPES = ['ALL', 'ANY', 'N_OF_M']
 const APPROVER_TYPES = ['USER', 'ROLE', 'MANAGER']
 
-function StepForm({ workflowId, step, onClose }) {
+function StepForm({ workflowId, step, onClose, isReadOnly = false }) {
   // React Query hooks
   const { data: workflow } = useWorkflow(workflowId)
   const addStepMutation = useAddStep()
   const updateStepMutation = useUpdateStep()
+  const deleteStepMutation = useDeleteStep()
   const addApproversMutation = useAddApprovers()
   const removeApproverMutation = useRemoveApprover()
   
   // Modal hook
-  const { modal, showAlert, closeModal } = useModal()
+  const { modal, showAlert, showConfirm, closeModal } = useModal()
   
   // UI state
   const { setSelectedStep } = useWorkflowStore()
@@ -110,8 +112,29 @@ function StepForm({ workflowId, step, onClose }) {
   }, [workflow?.steps, step?.id])
 
   const isSaving = addStepMutation.isPending || updateStepMutation.isPending
+  const isDeleting = deleteStepMutation.isPending
   const isAddingApprovers = addApproversMutation.isPending
   const isRemovingApprover = removeApproverMutation.isPending
+
+  const handleDeleteStep = () => {
+    if (!step?.id) return
+    showConfirm(
+      `Are you sure you want to delete the step "${step.name}"? This action cannot be undone.`,
+      async () => {
+        try {
+          await deleteStepMutation.mutateAsync({
+            stepId: step.id,
+            workflowId,
+          })
+          onClose()
+        } catch (error) {
+          showAlert('Failed to delete step: ' + error.message, 'error', 'Error')
+        }
+      },
+      'Delete Step',
+      'warning'
+    )
+  }
 
   const onSubmit = async (data) => {
     try {
@@ -249,7 +272,7 @@ function StepForm({ workflowId, step, onClose }) {
   return (
     <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <CardHeader
-        title={isNewStep ? 'New Step' : 'Edit Step'}
+        title={isReadOnly ? 'View Step (Read Only)' : isNewStep ? 'New Step' : 'Edit Step'}
         action={
           <IconButton onClick={onClose} size="small">
             <Close />
@@ -257,6 +280,11 @@ function StepForm({ workflowId, step, onClose }) {
         }
       />
       <CardContent sx={{ flexGrow: 1, overflow: 'auto' }}>
+        {isReadOnly && (
+          <Alert severity="info" icon={<Lock fontSize="small" />} sx={{ mb: 2 }}>
+            This workflow is in use. Steps cannot be modified. Create a new version to make changes.
+          </Alert>
+        )}
         <form onSubmit={handleSubmit(onSubmit)}>
           <Stack spacing={3}>
             <TextField
@@ -267,6 +295,7 @@ function StepForm({ workflowId, step, onClose }) {
               placeholder="e.g., Finance Approval"
               error={!!errors.name}
               helperText={errors.name?.message}
+              disabled={isReadOnly}
             />
 
             <TextField
@@ -281,16 +310,17 @@ function StepForm({ workflowId, step, onClose }) {
               placeholder="1"
               error={!!errors.order}
               helperText={errors.order?.message || 'Steps with same order run in parallel'}
+              disabled={isReadOnly}
             />
 
-            <FormControl fullWidth required>
+            <FormControl fullWidth required disabled={isReadOnly}>
               <InputLabel>Approval Type</InputLabel>
               <Controller
                 name="approvalType"
                 control={control}
                 rules={{ required: true }}
                 render={({ field }) => (
-                  <Select {...field} label="Approval Type">
+                  <Select {...field} label="Approval Type" disabled={isReadOnly}>
                     {APPROVAL_TYPES.map((type) => (
                       <MenuItem key={type} value={type}>
                         {type}
@@ -314,6 +344,7 @@ function StepForm({ workflowId, step, onClose }) {
                 placeholder="2"
                 error={!!errors.minApprovals}
                 helperText={errors.minApprovals?.message}
+                disabled={isReadOnly}
               />
             )}
 
@@ -325,6 +356,7 @@ function StepForm({ workflowId, step, onClose }) {
               placeholder="24"
               error={!!errors.slaHours}
               helperText={errors.slaHours?.message}
+              disabled={isReadOnly}
             />
 
             <Box>
@@ -337,7 +369,7 @@ function StepForm({ workflowId, step, onClose }) {
                   <Chip
                     key={approver.id}
                     label={`${approver.value} (${approver.type})`}
-                    onDelete={() => handleRemoveApprover(approver.id)}
+                    onDelete={isReadOnly ? undefined : () => handleRemoveApprover(approver.id)}
                     disabled={isRemovingApprover}
                     deleteIcon={
                       isRemovingApprover ? (
@@ -363,10 +395,10 @@ function StepForm({ workflowId, step, onClose }) {
 
                 {/* Add approver form */}
                 {showApproverForm && (
-                  <Box sx={{ p: 2, border: 1, borderColor: 'divider', borderRadius: 1 }}>
+                  <Box sx={{ p: 2, border: 1, borderColor: 'divider', borderRadius: 1, bgcolor: 'grey.50' }}>
                     <Stack spacing={2}>
-                      <Stack direction="row" spacing={2}>
-                        <FormControl sx={{ minWidth: 120 }}>
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <FormControl size="small" sx={{ minWidth: 110 }}>
                           <InputLabel>Type</InputLabel>
                           <Select
                             value={newApprover.type}
@@ -381,6 +413,7 @@ function StepForm({ workflowId, step, onClose }) {
                           </Select>
                         </FormControl>
                         <TextField
+                          size="small"
                           fullWidth
                           value={newApprover.value}
                           onChange={(e) => setNewApprover({ ...newApprover, value: e.target.value })}
@@ -392,11 +425,22 @@ function StepForm({ workflowId, step, onClose }) {
                           }}
                         />
                       </Stack>
-                      <Stack direction="row" spacing={1} flexWrap="wrap">
+
+                      {/* Pending approvers info */}
+                      {pendingApprovers.length > 0 && (
+                        <Typography variant="caption" color="warning.main" sx={{ fontWeight: 500 }}>
+                          {pendingApprovers.length} approver{pendingApprovers.length !== 1 ? 's' : ''}{' '}
+                          {isNewStep ? 'will be added with step' : 'ready to submit'}
+                        </Typography>
+                      )}
+
+                      {/* Action buttons — stacked in their own row */}
+                      <Stack direction="row" spacing={1} alignItems="center">
                         <Button
                           size="small"
                           variant="contained"
                           onClick={handleAddToPending}
+                          startIcon={<Add />}
                         >
                           Add to List
                         </Button>
@@ -407,19 +451,16 @@ function StepForm({ workflowId, step, onClose }) {
                             color="success"
                             onClick={handleSubmitPendingApprovers}
                             disabled={isAddingApprovers}
-                            startIcon={isAddingApprovers ? <CircularProgress size={16} /> : null}
+                            startIcon={isAddingApprovers ? <CircularProgress size={14} /> : null}
                           >
                             {isAddingApprovers ? 'Adding...' : `Submit (${pendingApprovers.length})`}
                           </Button>
                         )}
-                        {pendingApprovers.length > 0 && isNewStep && (
-                          <Typography variant="caption" color="text.secondary" sx={{ alignSelf: 'center', ml: 1 }}>
-                            {pendingApprovers.length} approver{pendingApprovers.length !== 1 ? 's' : ''} will be added with step
-                          </Typography>
-                        )}
+                        <Box sx={{ flex: 1 }} />
                         <Button
                           size="small"
                           variant="outlined"
+                          color="inherit"
                           onClick={handleCancelApprover}
                         >
                           Cancel
@@ -436,7 +477,7 @@ function StepForm({ workflowId, step, onClose }) {
                   </Typography>
                 )}
 
-                {!showApproverForm && (
+                {!showApproverForm && !isReadOnly && (
                   <Button
                     startIcon={<Add />}
                     variant="outlined"
@@ -449,26 +490,60 @@ function StepForm({ workflowId, step, onClose }) {
               </Stack>
             </Box>
 
-            <Stack direction="row" spacing={2} justifyContent="flex-end">
-              <Button
-                variant="outlined"
-                onClick={onClose}
-                disabled={isSaving}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                variant="contained"
-                disabled={isSaving}
-                startIcon={isSaving ? <CircularProgress size={16} /> : null}
-              >
-                {isSaving ? (isNewStep ? 'Creating...' : 'Saving...') : (isNewStep ? 'Create Step' : 'Save Changes')}
-              </Button>
-            </Stack>
           </Stack>
         </form>
       </CardContent>
+
+      {/* Fixed bottom action bar — outside CardContent so it never scrolls or overlaps */}
+      <Box
+        sx={{
+          p: 2,
+          borderTop: 1,
+          borderColor: 'divider',
+          bgcolor: 'background.paper',
+          display: 'flex',
+          gap: 1,
+          alignItems: 'center',
+          flexShrink: 0,
+        }}
+      >
+        {/* Delete button — pushed to the left */}
+        {!isNewStep && !isReadOnly && (
+          <Button
+            variant="outlined"
+            color="error"
+            size="small"
+            onClick={handleDeleteStep}
+            disabled={isSaving || isDeleting}
+            startIcon={isDeleting ? <CircularProgress size={14} /> : <Delete />}
+          >
+            {isDeleting ? 'Deleting...' : 'Delete'}
+          </Button>
+        )}
+
+        <Box sx={{ flex: 1 }} />
+
+        <Button
+          variant="outlined"
+          size="small"
+          onClick={onClose}
+          disabled={isSaving || isDeleting}
+        >
+          {isReadOnly ? 'Close' : 'Cancel'}
+        </Button>
+
+        {!isReadOnly && (
+          <Button
+            variant="contained"
+            size="small"
+            onClick={handleSubmit(onSubmit)}
+            disabled={isSaving || isDeleting}
+            startIcon={isSaving ? <CircularProgress size={14} color="inherit" /> : null}
+          >
+            {isSaving ? (isNewStep ? 'Creating...' : 'Saving...') : (isNewStep ? 'Create Step' : 'Save Changes')}
+          </Button>
+        )}
+      </Box>
       <Modal
         isOpen={modal.isOpen}
         onClose={closeModal}

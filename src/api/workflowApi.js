@@ -17,6 +17,24 @@ const api = axios.create({
   },
 })
 
+// Response interceptor — extract backend error message for all API calls
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // Extract the actual message from the backend response
+    const backendMessage =
+      error.response?.data?.message ||
+      error.response?.data?.error ||
+      (typeof error.response?.data === 'string' ? error.response.data : null)
+
+    if (backendMessage) {
+      error.message = backendMessage
+    }
+
+    return Promise.reject(error)
+  }
+)
+
 // Workflow CRUD operations
 export const workflowApi = {
   // List all workflows
@@ -82,6 +100,22 @@ export const workflowApi = {
   // Remove approver
   removeApprover: async (approverId) => {
     const response = await api.delete(APPROVER_ENDPOINTS.REMOVE(approverId))
+    return response.data
+  },
+
+  // Update workflow definition (name, version, etc.)
+  updateWorkflow: async (workflowId, updateData, userId = 'system') => {
+    const response = await api.put(
+      WORKFLOW_ENDPOINTS.UPDATE(workflowId),
+      updateData,
+      { params: { [QUERY_PARAMS.UPDATED_BY]: userId } }
+    )
+    return response.data
+  },
+
+  // Delete workflow definition
+  deleteWorkflow: async (workflowId) => {
+    const response = await api.delete(WORKFLOW_ENDPOINTS.DELETE(workflowId))
     return response.data
   },
 

@@ -7,8 +7,10 @@ import {
   Stack,
   Box,
   CircularProgress,
+  Chip,
+  Tooltip,
 } from '@mui/material'
-import { Save, ArrowBack, Add, List as ListIcon } from '@mui/icons-material'
+import { Save, ArrowBack, Add, List as ListIcon, Lock, ContentCopy } from '@mui/icons-material'
 
 function Toolbar({
   workflowName,
@@ -22,6 +24,9 @@ function Toolbar({
   isSaving,
   onCreateWorkItem,
   canCreateWorkItem,
+  isLocked,
+  onCreateNewVersion,
+  isCreatingVersion,
 }) {
   return (
     <AppBar position="static" sx={{ bgcolor: 'background.paper', color: 'text.primary', boxShadow: 1 }}>
@@ -43,6 +48,7 @@ function Toolbar({
             value={workflowName}
             onChange={(e) => onWorkflowNameChange(e.target.value)}
             sx={{ minWidth: 200 }}
+            disabled={isLocked}
           />
           <TextField
             size="small"
@@ -52,7 +58,19 @@ function Toolbar({
             onChange={(e) => onWorkflowVersionChange(parseInt(e.target.value) || 1)}
             inputProps={{ min: 1 }}
             sx={{ width: 100 }}
+            disabled={isLocked}
           />
+          {isLocked && (
+            <Tooltip title="This workflow is being used by work items. Steps cannot be modified.">
+              <Chip
+                icon={<Lock fontSize="small" />}
+                label="In Use — Locked"
+                color="warning"
+                size="small"
+                variant="outlined"
+              />
+            </Tooltip>
+          )}
         </Box>
 
         <Stack direction="row" spacing={1}>
@@ -66,24 +84,39 @@ function Toolbar({
               Create Work Item
             </Button>
           )}
-          {canAddStep && (
+
+          {isLocked ? (
             <Button
-              variant="outlined"
-              startIcon={<Add />}
-              onClick={onAddStep}
-              title="Add Step"
+              variant="contained"
+              color="warning"
+              startIcon={isCreatingVersion ? <CircularProgress size={16} color="inherit" /> : <ContentCopy />}
+              onClick={onCreateNewVersion}
+              disabled={isCreatingVersion}
             >
-              Add Step
+              {isCreatingVersion ? 'Creating...' : 'Create New Version'}
             </Button>
+          ) : (
+            <>
+              {canAddStep && (
+                <Button
+                  variant="outlined"
+                  startIcon={<Add />}
+                  onClick={onAddStep}
+                  title="Add Step"
+                >
+                  Add Step
+                </Button>
+              )}
+              <Button
+                variant="contained"
+                startIcon={isSaving ? <CircularProgress size={16} color="inherit" /> : <Save />}
+                onClick={onSave}
+                disabled={isSaving}
+              >
+                {isSaving ? 'Saving...' : 'Save Workflow'}
+              </Button>
+            </>
           )}
-          <Button
-            variant="contained"
-            startIcon={isSaving ? <CircularProgress size={16} color="inherit" /> : <Save />}
-            onClick={onSave}
-            disabled={isSaving}
-          >
-            {isSaving ? 'Saving...' : 'Save Workflow'}
-          </Button>
         </Stack>
       </MuiToolbar>
     </AppBar>

@@ -18,10 +18,14 @@ import {
   CircularProgress,
   Alert,
   LinearProgress,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from '@mui/material'
-import { ArrowBack, Send, Close } from '@mui/icons-material'
-import { useWorkItem, useWorkflowProgress, useSubmitWorkItem } from '../../hooks/queries/useWorkItems'
-import { useWorkflow } from '../../hooks/queries/useWorkflows'
+import { ArrowBack, Send, Close, PlayArrow } from '@mui/icons-material'
+import { useWorkItem, useWorkflowProgress, useSubmitWorkItem, useStartWorkflow } from '../../hooks/queries/useWorkItems'
+import { useWorkflow, useWorkflows } from '../../hooks/queries/useWorkflows'
 import { useModal } from '../../hooks/useModal'
 import { stepsToNodes, stepsToEdges } from '../../utils/workflowMapper'
 import ReactFlow, {
@@ -47,10 +51,16 @@ const nodeTypes = {
 function WorkItemViewer({ workItemId, onBack }) {
   const { data: workItem, isLoading: isLoadingWorkItem } = useWorkItem(workItemId)
   const { data: progress, isLoading: isLoadingProgress, error: progressError } = useWorkflowProgress(workItemId)
+  const { data: allWorkflows = [], isLoading: isLoadingWorkflows } = useWorkflows()
   const submitWorkItemMutation = useSubmitWorkItem()
+  const startWorkflowMutation = useStartWorkflow()
   const { modal, showAlert, showConfirm, closeModal } = useModal()
   const [showSubmitForm, setShowSubmitForm] = useState(false)
   const [contentRef, setContentRef] = useState('')
+
+  // Start workflow modal state
+  const [showStartWorkflowModal, setShowStartWorkflowModal] = useState(false)
+  const [selectedWorkflowDefId, setSelectedWorkflowDefId] = useState('')
 
   // Extract workflowId from progress response (progress API returns workflowInstance)
   // Fall back to workItem fields if available
@@ -164,6 +174,56 @@ function WorkItemViewer({ workItemId, onBack }) {
     }
   }
 
+  // Filter only active workflows for the selection modal
+  const activeWorkflows = allWorkflows.filter((wf) => wf.isActive)
+
+  const handleStartWorkflow = () => {
+    const existingDefId = workItem?.workflowDefinitionId || workItem?.workflowDefId
+    if (existingDefId) {
+      // Already has a workflow definition — confirm and start directly
+      showConfirm(
+        'Are you sure you want to start this workflow?',
+        async () => {
+          try {
+            await startWorkflowMutation.mutateAsync({
+              workItemId: String(workItemId),
+              workflowDefId: String(existingDefId),
+              userId: 'user_1',
+            })
+            showAlert('Workflow started successfully!', 'success', 'Success')
+          } catch (error) {
+            showAlert('Failed to start workflow: ' + (error.message || 'Unknown error'), 'error', 'Error')
+          }
+        },
+        'Start Workflow',
+        'info'
+      )
+    } else {
+      // No workflow definition — show selection modal
+      setSelectedWorkflowDefId('')
+      setShowStartWorkflowModal(true)
+    }
+  }
+
+  const handleConfirmStartWorkflow = async () => {
+    if (!selectedWorkflowDefId) {
+      showAlert('Please select a workflow definition.', 'error', 'Validation Error')
+      return
+    }
+    try {
+      await startWorkflowMutation.mutateAsync({
+        workItemId: String(workItemId),
+        workflowDefId: String(selectedWorkflowDefId),
+        userId: 'user_1',
+      })
+      showAlert('Workflow started successfully!', 'success', 'Success')
+      setShowStartWorkflowModal(false)
+      setSelectedWorkflowDefId('')
+    } catch (error) {
+      showAlert('Failed to start workflow: ' + (error.message || 'Unknown error'), 'error', 'Error')
+    }
+  }
+
   if (isLoadingWorkItem) {
     return <Loader size="large" text="Loading work item..." />
   }
@@ -202,7 +262,8 @@ function WorkItemViewer({ workItemId, onBack }) {
 
   // Derive display values from progress API
   const wfInstance = progress?.workflowInstance
-  const wfStatus = wfInstance?.status || workItem.status
+  const workItemStatus = workItem.status  // Work item's own status (e.g. IN_REVIEW)
+  const wfInstanceStatus = wfInstance?.status  // Workflow instance status (e.g. IN_PROGRESS)
   const wfName = wfInstance?.workflowName || workItem.workflowName || 'N/A'
   const currentStepName = progress?.currentStep?.stepName
   const progressInfo = progress?.progress
@@ -231,7 +292,15 @@ function WorkItemViewer({ workItemId, onBack }) {
                 {workItem.title || `Work Item #${workItem.workItemId || workItem.instanceId || workItem.id}`}
               </Typography>
               <Stack direction="row" spacing={2} alignItems="center" sx={{ mt: 1 }}>
-                {getStatusChip(wfStatus)}
+                {getStatusChip(workItemStatus)}
+                {wfInstanceStatus && (
+                  <Chip
+                    label={`Workflow: ${wfInstanceStatus.replace(/_/g, ' ')}`}
+                    size="small"
+                    color={wfInstanceStatus === 'COMPLETED' ? 'success' : wfInstanceStatus === 'IN_PROGRESS' ? 'warning' : 'default'}
+                    variant="outlined"
+                  />
+                )}
                 <Typography variant="body2" color="text.secondary">
                   Workflow: {wfName}
                 </Typography>
@@ -243,16 +312,29 @@ function WorkItemViewer({ workItemId, onBack }) {
               </Stack>
             </Box>
           </Stack>
-          {canSubmit && (
-            <Button
-              variant="contained"
-              onClick={handleSubmit}
-              disabled={submitWorkItemMutation.isPending}
-              startIcon={submitWorkItemMutation.isPending ? <CircularProgress size={16} /> : <Send />}
-            >
-              {submitWorkItemMutation.isPending ? 'Submitting...' : 'Submit & Start Workflow'}
-            </Button>
-          )}
+          <Stack direction="row" spacing={1}>
+            {canSubmit && (
+              <Button
+                variant="contained"
+                onClick={handleSubmit}
+                disabled={submitWorkItemMutation.isPending}
+                startIcon={submitWorkItemMutation.isPending ? <CircularProgress size={16} /> : <Send />}
+              >
+                {submitWorkItemMutation.isPending ? 'Submitting...' : 'Submit & Start Workflow'}
+              </Button>
+            )}
+            {workItemStatus === 'SUBMITTED' && !wfInstance && (
+              <Button
+                variant="contained"
+                color="success"
+                onClick={handleStartWorkflow}
+                disabled={startWorkflowMutation.isPending}
+                startIcon={startWorkflowMutation.isPending ? <CircularProgress size={16} /> : <PlayArrow />}
+              >
+                {startWorkflowMutation.isPending ? 'Starting...' : 'Start Workflow'}
+              </Button>
+            )}
+          </Stack>
         </Stack>
       </Paper>
 
@@ -268,10 +350,18 @@ function WorkItemViewer({ workItemId, onBack }) {
                 <Stack spacing={2} sx={{ mt: 2 }}>
                   <Box>
                     <Typography variant="caption" color="text.secondary">
-                      Status:
+                      Work Item Status:
                     </Typography>
-                    <Typography variant="body2">{wfStatus}</Typography>
+                    <Typography variant="body2">{workItemStatus}</Typography>
                   </Box>
+                  {wfInstanceStatus && (
+                    <Box>
+                      <Typography variant="caption" color="text.secondary">
+                        Workflow Status:
+                      </Typography>
+                      <Typography variant="body2">{wfInstanceStatus}</Typography>
+                    </Box>
+                  )}
                   <Box>
                     <Typography variant="caption" color="text.secondary">
                       Created:
@@ -493,6 +583,81 @@ function WorkItemViewer({ workItemId, onBack }) {
             startIcon={submitWorkItemMutation.isPending ? <CircularProgress size={16} /> : <Send />}
           >
             {submitWorkItemMutation.isPending ? 'Submitting...' : 'Submit'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Start Workflow Dialog — Select Workflow Definition */}
+      <Dialog
+        open={showStartWorkflowModal}
+        onClose={() => setShowStartWorkflowModal(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          Start Workflow
+          <IconButton
+            aria-label="close"
+            onClick={() => setShowStartWorkflowModal(false)}
+            sx={{ position: 'absolute', right: 8, top: 8 }}
+          >
+            <Close />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2, mt: 1 }}>
+            Select a workflow definition to start for this work item.
+          </Typography>
+          {isLoadingWorkflows ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
+              <CircularProgress size={24} />
+            </Box>
+          ) : activeWorkflows.length === 0 ? (
+            <Alert severity="warning" sx={{ mt: 1 }}>
+              No active workflow definitions found. Please create and activate a workflow first.
+            </Alert>
+          ) : (
+            <FormControl fullWidth sx={{ mt: 1 }}>
+              <InputLabel id="viewer-workflow-select-label">Workflow Definition</InputLabel>
+              <Select
+                labelId="viewer-workflow-select-label"
+                value={selectedWorkflowDefId}
+                onChange={(e) => setSelectedWorkflowDefId(e.target.value)}
+                label="Workflow Definition"
+              >
+                {activeWorkflows.map((wf) => (
+                  <MenuItem key={wf.id} value={wf.id}>
+                    <Stack direction="row" spacing={1} alignItems="center" sx={{ width: '100%' }}>
+                      <Typography variant="body1">{wf.name}</Typography>
+                      <Chip label={`v${wf.version}`} size="small" sx={{ ml: 1, fontSize: '0.7rem', height: 20 }} />
+                      <Typography variant="caption" color="text.secondary" sx={{ ml: 'auto' }}>
+                        {wf.steps?.length || 0} steps
+                      </Typography>
+                    </Stack>
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => {
+              setShowStartWorkflowModal(false)
+              setSelectedWorkflowDefId('')
+            }}
+            disabled={startWorkflowMutation.isPending}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleConfirmStartWorkflow}
+            disabled={startWorkflowMutation.isPending || !selectedWorkflowDefId}
+            variant="contained"
+            color="success"
+            startIcon={startWorkflowMutation.isPending ? <CircularProgress size={16} /> : <PlayArrow />}
+          >
+            {startWorkflowMutation.isPending ? 'Starting...' : 'Start Workflow'}
           </Button>
         </DialogActions>
       </Dialog>

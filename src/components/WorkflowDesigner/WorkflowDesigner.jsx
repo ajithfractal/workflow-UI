@@ -8,8 +8,9 @@ import ReactFlow, {
   addEdge,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
-import { Box, Paper, Alert } from '@mui/material'
-import { useWorkflow, useCreateWorkflow } from '../../hooks/queries/useWorkflows'
+import { Box, Alert, Typography, Fade } from '@mui/material'
+import { useWorkflow, useCreateWorkflow, useUpdateWorkflow, useWorkflows } from '../../hooks/queries/useWorkflows'
+import { useWorkItems } from '../../hooks/queries/useWorkItems'
 import useWorkflowStore from '../../hooks/useWorkflow'
 import { useModal } from '../../hooks/useModal'
 import { stepsToNodes, stepsToEdges } from '../../utils/workflowMapper'
@@ -27,18 +28,26 @@ const nodeTypes = {
   endNode: EndNode,
 }
 
-function WorkflowDesigner({ workflowId, onBack, onCreateWorkItem }) {
+function WorkflowDesigner({ workflowId, onBack, onCreateWorkItem, onNavigateToWorkflow }) {
   // Use React Query for data fetching
   const { data: workflow, isLoading, error } = useWorkflow(workflowId)
+  const { data: allWorkflows = [] } = useWorkflows()
+  const { data: workItemsForWorkflow = [], isLoading: isLoadingWorkItems } = useWorkItems(workflowId)
   const createWorkflowMutation = useCreateWorkflow()
+  const updateWorkflowMutation = useUpdateWorkflow()
   const { selectedStep, setSelectedStep } = useWorkflowStore()
-  const { modal, showAlert, closeModal } = useModal()
+  const { modal, showAlert, showConfirm, closeModal } = useModal()
 
   const [nodes, setNodes, onNodesChange] = useNodesState([])
   const [edges, setEdges, onEdgesChange] = useEdgesState([])
   const [showStepForm, setShowStepForm] = useState(false)
   const [workflowName, setWorkflowName] = useState('')
   const [workflowVersion, setWorkflowVersion] = useState(1)
+  const [isCreatingVersion, setIsCreatingVersion] = useState(false)
+  const [isSettingUp, setIsSettingUp] = useState(false)
+
+  // Check if workflow is in use by work items (any work item exists for this workflow)
+  const isInUse = !!(workflowId && workItemsForWorkflow.length > 0)
 
   // Initialize workflow name/version from fetched data
   useEffect(() => {
@@ -87,27 +96,85 @@ function WorkflowDesigner({ workflowId, onBack, onCreateWorkItem }) {
   }, [workflow?.steps, setSelectedStep])
 
   const onConnect = useCallback(
-    (params) => setEdges((eds) => addEdge(params, eds)),
-    [setEdges]
+    (params) => {
+      if (isInUse) return // Prevent edge modifications when locked
+      setEdges((eds) => addEdge(params, eds))
+    },
+    [setEdges, isInUse]
   )
 
   const handleSaveWorkflow = async () => {
-    if (!workflow?.id && workflowName) {
+    if (!workflowName.trim()) {
+      showAlert('Please enter a workflow name', 'warning', 'Validation Error')
+      return
+    }
+
+    if (workflow?.id) {
+      // Updating an existing workflow
+      const nameChanged = workflowName !== workflow.name
+      const versionChanged = workflowVersion !== workflow.version
+
+      if (!nameChanged && !versionChanged) {
+        showAlert('No changes to save.', 'info', 'No Changes')
+        return
+      }
+
       try {
-        await createWorkflowMutation.mutateAsync({
+        await updateWorkflowMutation.mutateAsync({
+          workflowId: workflow.id,
+          updateData: {
+            name: workflowName,
+            version: workflowVersion,
+          },
+        })
+        showAlert('Workflow updated successfully!', 'success', 'Success')
+      } catch (err) {
+        showAlert('Failed to update workflow: ' + err.message, 'error', 'Error')
+      }
+    } else {
+      // Creating a brand new workflow
+      setIsSettingUp(true)
+      try {
+        const response = await createWorkflowMutation.mutateAsync({
           name: workflowName,
           version: workflowVersion,
         })
-        // Note: After creation, the workflow list will be invalidated
-        // User should navigate back and select the new workflow
-        showAlert('Workflow created successfully! Please refresh or navigate back to see it.', 'success', 'Success')
+        // Extract the new workflow ID from response
+        const newWorkflowId = typeof response === 'string'
+          ? response
+          : response?.workflowId || response?.id || null
+
+        if (newWorkflowId && onNavigateToWorkflow) {
+          // Short delay for nice transition effect, then navigate
+          setTimeout(() => {
+            onNavigateToWorkflow(newWorkflowId)
+            setIsSettingUp(false)
+            // Auto-open step form after a brief moment so user can start adding steps
+            setTimeout(() => {
+              setSelectedStep(null)
+              setShowStepForm(true)
+            }, 500)
+          }, 1500)
+        } else {
+          setIsSettingUp(false)
+          showAlert('Workflow created successfully!', 'success', 'Success')
+        }
       } catch (err) {
+        setIsSettingUp(false)
         showAlert('Failed to create workflow: ' + err.message, 'error', 'Error')
       }
     }
   }
 
   const handleAddStep = () => {
+    if (isInUse) {
+      showAlert(
+        'This workflow definition is being used by work items. You cannot modify it. Please create a new version.',
+        'warning',
+        'Workflow Locked'
+      )
+      return
+    }
     if (!workflow?.id) {
       showAlert('Please save the workflow first before adding steps', 'warning', 'Warning')
       return
@@ -116,13 +183,116 @@ function WorkflowDesigner({ workflowId, onBack, onCreateWorkItem }) {
     setShowStepForm(true)
   }
 
+  const handleCreateNewVersion = async () => {
+    if (!workflow) return
+
+    const currentName = workflow.name
+    const nextVersion = (workflow.version || 1) + 1
+
+    // Check if a workflow with the same name and next version already exists
+    const existingNextVersion = allWorkflows.find(
+      (wf) => wf.name === currentName && wf.version === nextVersion
+    )
+
+    if (existingNextVersion) {
+      // A newer version already exists — navigate to it
+      showConfirm(
+        `Version ${nextVersion} of "${currentName}" already exists. Do you want to open it for editing?`,
+        () => {
+          if (onNavigateToWorkflow) {
+            onNavigateToWorkflow(existingNextVersion.id)
+          }
+        },
+        'Version Exists',
+        'info'
+      )
+      return
+    }
+
+    // Create a new version
+    setIsCreatingVersion(true)
+    try {
+      const response = await createWorkflowMutation.mutateAsync({
+        name: currentName,
+        version: nextVersion,
+      })
+      // Extract the actual workflow ID from the response
+      // API may return a string ID, or an object like { workflowId: "...", ... }
+      const newWorkflowId = typeof response === 'string'
+        ? response
+        : response?.workflowId || response?.id || response
+      showAlert(
+        `New version ${nextVersion} of "${currentName}" created successfully! Navigating to the new version...`,
+        'success',
+        'New Version Created'
+      )
+      // Navigate to the new workflow
+      if (onNavigateToWorkflow && newWorkflowId) {
+        setTimeout(() => {
+          onNavigateToWorkflow(newWorkflowId)
+        }, 1000)
+      }
+    } catch (err) {
+      showAlert('Failed to create new version: ' + err.message, 'error', 'Error')
+    } finally {
+      setIsCreatingVersion(false)
+    }
+  }
+
   const handleStepFormClose = () => {
     setShowStepForm(false)
     setSelectedStep(null)
   }
 
-  if (isLoading) {
-    return <Loader size="large" text="Loading workflow..." />
+  if (isLoading || isSettingUp) {
+    return (
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          height: '100vh',
+          alignItems: 'center',
+          justifyContent: 'center',
+          bgcolor: 'background.default',
+          gap: 3,
+        }}
+      >
+        <Fade in timeout={600}>
+          <Box sx={{ textAlign: 'center' }}>
+            <Box
+              sx={{
+                width: 80,
+                height: 80,
+                borderRadius: '50%',
+                bgcolor: 'primary.main',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                mx: 'auto',
+                mb: 3,
+                animation: 'pulse 1.5s ease-in-out infinite',
+                '@keyframes pulse': {
+                  '0%': { transform: 'scale(1)', opacity: 1 },
+                  '50%': { transform: 'scale(1.1)', opacity: 0.8 },
+                  '100%': { transform: 'scale(1)', opacity: 1 },
+                },
+              }}
+            >
+              <Typography variant="h4" sx={{ color: 'white' }}>✨</Typography>
+            </Box>
+            <Typography variant="h5" fontWeight={600} gutterBottom>
+              {isSettingUp ? 'Setting up your workflow designer...' : 'Loading workflow...'}
+            </Typography>
+            <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
+              {isSettingUp
+                ? 'Your workflow has been created. Preparing the designer so you can start adding steps.'
+                : 'Fetching workflow details, please wait.'}
+            </Typography>
+            <Loader size="medium" />
+          </Box>
+        </Fade>
+      </Box>
+    )
   }
 
   if (error) {
@@ -143,22 +313,36 @@ function WorkflowDesigner({ workflowId, onBack, onCreateWorkItem }) {
         onSave={handleSaveWorkflow}
         onBack={onBack}
         onAddStep={handleAddStep}
-        canAddStep={!!workflow?.id}
-        isSaving={createWorkflowMutation.isPending}
+        canAddStep={!!workflow?.id && !isInUse}
+        isSaving={createWorkflowMutation.isPending || updateWorkflowMutation.isPending}
         onCreateWorkItem={onCreateWorkItem}
         canCreateWorkItem={!!workflow?.id && workflow?.isActive}
+        isLocked={isInUse}
+        onCreateNewVersion={handleCreateNewVersion}
+        isCreatingVersion={isCreatingVersion}
       />
+
+      {/* Warning banner when workflow is in use */}
+      {isInUse && (
+        <Alert severity="warning" sx={{ borderRadius: 0 }}>
+          This workflow definition is being used by <strong>{workItemsForWorkflow.length}</strong> work item(s).
+          Steps cannot be added, edited, or deleted. To make changes, create a new version.
+        </Alert>
+      )}
 
       <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         <Box sx={{ flex: 1, position: 'relative' }}>
           <ReactFlow
             nodes={nodes}
             edges={edges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
+            onNodesChange={isInUse ? undefined : onNodesChange}
+            onEdgesChange={isInUse ? undefined : onEdgesChange}
+            onConnect={isInUse ? undefined : onConnect}
             onNodeClick={onNodeClick}
             nodeTypes={nodeTypes}
+            nodesDraggable={!isInUse}
+            nodesConnectable={!isInUse}
+            elementsSelectable={!isInUse}
             defaultEdgeOptions={{
               type: 'smoothstep',
               markerEnd: {
@@ -181,6 +365,7 @@ function WorkflowDesigner({ workflowId, onBack, onCreateWorkItem }) {
               workflowId={workflow?.id}
               step={selectedStep}
               onClose={handleStepFormClose}
+              isReadOnly={isInUse}
             />
           </Box>
         )}
