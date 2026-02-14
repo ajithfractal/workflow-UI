@@ -51,6 +51,13 @@ export const WORKFLOW_EXECUTION_ENDPOINTS = {
   START: `${API_BASE}/workflows/start`,
 }
 
+// Task endpoints (approver actions)
+export const TASK_ENDPOINTS = {
+  LIST: `${API_BASE}/tasks`,
+  APPROVE: (taskId) => `${API_BASE}/tasks/${taskId}/approve`,
+  REJECT: (taskId) => `${API_BASE}/tasks/${taskId}/reject`,
+}
+
 // Query parameter keys
 export const QUERY_PARAMS = {
   CREATED_BY: 'createdBy',

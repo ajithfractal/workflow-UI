@@ -5,6 +5,7 @@ import {
   APPROVER_ENDPOINTS,
   WORK_ITEM_ENDPOINTS,
   WORKFLOW_EXECUTION_ENDPOINTS,
+  TASK_ENDPOINTS,
   QUERY_PARAMS,
 } from '../constants/apiEndpoints'
 
@@ -248,6 +249,36 @@ export const workflowApi = {
         return []
       }
     }
+  },
+
+  // ========== Task / Approver APIs ==========
+
+  // Get tasks by approver ID
+  getTasksByApprover: async (approverId) => {
+    const response = await api.get(TASK_ENDPOINTS.LIST, {
+      params: { approverId },
+    })
+    return response.data
+  },
+
+  // Approve a task
+  approveTask: async (taskId, comment = '', userId = 'system') => {
+    const response = await api.post(
+      TASK_ENDPOINTS.APPROVE(taskId),
+      { comment },
+      { params: { [QUERY_PARAMS.USER_ID]: userId } }
+    )
+    return response.data
+  },
+
+  // Reject a task
+  rejectTask: async (taskId, comment = '', userId = 'system') => {
+    const response = await api.post(
+      TASK_ENDPOINTS.REJECT(taskId),
+      { comment },
+      { params: { [QUERY_PARAMS.USER_ID]: userId } }
+    )
+    return response.data
   },
 
   // Start workflow execution
