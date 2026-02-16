@@ -29,14 +29,14 @@
   border: 2px solid #3b82f6 !important;
 }
 
-.step-node.parallel:not(.completed):not(.current) {
+.step-node.parallel:not(.completed):not(.current):not(.failed) {
   border-color: #f59e0b;
   background: #fffbeb;
   border-width: 3px;
   box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
 }
 
-.step-node.parallel:not(.completed):not(.current):hover {
+.step-node.parallel:not(.completed):not(.current):not(.failed):hover {
   box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
   border-color: #d97706;
 }
@@ -51,6 +51,18 @@
 .step-node.completed:hover {
   box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4) !important;
   border-color: #059669 !important;
+}
+
+.step-node.failed {
+  border-color: #ef4444 !important;
+  background: #fee2e2 !important;
+  border-width: 3px !important;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3) !important;
+}
+
+.step-node.failed:hover {
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4) !important;
+  border-color: #dc2626 !important;
 }
 
 .step-node.current:not(.completed) {
@@ -104,6 +116,15 @@
   font-size: 0.75rem;
   padding: 0.125rem 0.5rem;
   background: #3b82f6;
+  color: white;
+  border-radius: 9999px;
+  font-weight: 600;
+}
+
+.failed-badge {
+  font-size: 0.75rem;
+  padding: 0.125rem 0.5rem;
+  background: #ef4444;
   color: white;
   border-radius: 9999px;
   font-weight: 600;

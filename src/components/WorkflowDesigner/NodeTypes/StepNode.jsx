@@ -3,9 +3,10 @@ import { Box, Typography, Chip, Stack } from '@mui/material'
 import '../../../styles/NodeTypes.css'
 
 function StepNode({ data }) {
-  const { step, order, isParallel, parallelGroupSize, isCompleted, isCurrent } = data
+  const { step, order, isParallel, parallelGroupSize, isCompleted, isCurrent, isFailed } = data
 
   const getBorderColor = () => {
+    if (isFailed) return '#ef4444'
     if (isCompleted) return '#10b981'
     if (isCurrent) return '#3b82f6'
     if (isParallel) return '#f59e0b'
@@ -13,6 +14,7 @@ function StepNode({ data }) {
   }
 
   const getBackgroundColor = () => {
+    if (isFailed) return '#fee2e2'
     if (isCompleted) return '#d1fae5'
     if (isCurrent) return '#dbeafe'
     if (isParallel) return '#fffbeb'
@@ -21,7 +23,7 @@ function StepNode({ data }) {
 
   return (
     <Box
-      className={`node step-node ${isParallel ? 'parallel' : ''} ${isCompleted ? 'completed' : ''} ${isCurrent ? 'current' : ''}`}
+      className={`node step-node ${isParallel ? 'parallel' : ''} ${isCompleted ? 'completed' : ''} ${isCurrent ? 'current' : ''} ${isFailed ? 'failed' : ''}`}
       sx={{
         background: getBackgroundColor(),
         border: `3px solid ${getBorderColor()}`,
@@ -54,7 +56,21 @@ function StepNode({ data }) {
               title={`Parallel execution - ${parallelGroupSize} steps`}
             />
           )}
-          {isCompleted && (
+          {isFailed && (
+            <Chip
+              label="✗"
+              size="small"
+              sx={{
+                bgcolor: '#ef4444',
+                color: 'white',
+                fontSize: '0.75rem',
+                height: 20,
+                fontWeight: 700,
+              }}
+              title="Step failed / rejected"
+            />
+          )}
+          {isCompleted && !isFailed && (
             <Chip
               label="✓"
               size="small"
@@ -67,7 +83,7 @@ function StepNode({ data }) {
               title="Step completed"
             />
           )}
-          {isCurrent && !isCompleted && (
+          {isCurrent && !isCompleted && !isFailed && (
             <Chip
               label="→"
               size="small"

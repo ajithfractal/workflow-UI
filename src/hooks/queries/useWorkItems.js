@@ -44,14 +44,15 @@ export const useWorkItem = (workItemId) => {
 }
 
 // Get workflow progress
-export const useWorkflowProgress = (workItemId) => {
+export const useWorkflowProgress = (workItemId, { polling = false } = {}) => {
   return useQuery({
     queryKey: workItemKeys.progress(workItemId),
     queryFn: async () => {
       return await workflowApi.getWorkflowProgress(workItemId)
     },
     enabled: !!workItemId,
-    refetchInterval: 5000, // Poll every 5 seconds for real-time updates
+    // Only poll when explicitly requested (e.g. workflow is IN_PROGRESS)
+    refetchInterval: polling ? 30000 : false,
   })
 }
 

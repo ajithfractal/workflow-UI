@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useState } from 'react'
+import { useEffect, useCallback, useMemo, useState } from 'react'
 import ReactFlow, {
   Background,
   Controls,
@@ -22,13 +22,12 @@ import Toolbar from './Toolbar'
 import Loader from '../Loader/Loader'
 import Modal from '../Modal/Modal'
 
-const nodeTypes = {
-  startNode: StartNode,
-  stepNode: StepNode,
-  endNode: EndNode,
-}
-
 function WorkflowDesigner({ workflowId, onBack, onCreateWorkItem, onNavigateToWorkflow }) {
+  const nodeTypes = useMemo(() => ({
+    startNode: StartNode,
+    stepNode: StepNode,
+    endNode: EndNode,
+  }), [])
   // Use React Query for data fetching
   const { data: workflow, isLoading, error } = useWorkflow(workflowId)
   const { data: allWorkflows = [] } = useWorkflows()

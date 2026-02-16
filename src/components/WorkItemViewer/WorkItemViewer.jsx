@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Box,
   Paper,
@@ -42,15 +42,15 @@ import EndNode from '../WorkflowDesigner/NodeTypes/EndNode'
 import Loader from '../Loader/Loader'
 import Modal from '../Modal/Modal'
 
-const nodeTypes = {
-  startNode: StartNode,
-  stepNode: StepNode,
-  endNode: EndNode,
-}
-
 function WorkItemViewer({ workItemId, onBack }) {
+  const nodeTypes = useMemo(() => ({
+    startNode: StartNode,
+    stepNode: StepNode,
+    endNode: EndNode,
+  }), [])
   const { data: workItem, isLoading: isLoadingWorkItem } = useWorkItem(workItemId)
-  const { data: progress, isLoading: isLoadingProgress, error: progressError } = useWorkflowProgress(workItemId)
+  const [isWfActive, setIsWfActive] = useState(false)
+  const { data: progress, isLoading: isLoadingProgress, error: progressError } = useWorkflowProgress(workItemId, { polling: isWfActive })
   const { data: allWorkflows = [], isLoading: isLoadingWorkflows } = useWorkflows()
   const submitWorkItemMutation = useSubmitWorkItem()
   const startWorkflowMutation = useStartWorkflow()
@@ -61,6 +61,12 @@ function WorkItemViewer({ workItemId, onBack }) {
   // Start workflow modal state
   const [showStartWorkflowModal, setShowStartWorkflowModal] = useState(false)
   const [selectedWorkflowDefId, setSelectedWorkflowDefId] = useState('')
+
+  // Enable polling only when workflow instance is actively running
+  useEffect(() => {
+    const status = progress?.workflowInstance?.status
+    setIsWfActive(status === 'IN_PROGRESS')
+  }, [progress?.workflowInstance?.status])
 
   // Extract workflowId from progress response (progress API returns workflowInstance)
   // Fall back to workItem fields if available
@@ -86,6 +92,7 @@ function WorkItemViewer({ workItemId, onBack }) {
     flowNodes.forEach((node) => {
       node.data.isCompleted = false
       node.data.isCurrent = false
+      node.data.isFailed = false
       node.data.stepStatus = null
     })
 
@@ -109,16 +116,23 @@ function WorkItemViewer({ workItemId, onBack }) {
 
         node.data.stepStatus = stepInst.status
 
-        if (stepInst.status === 'COMPLETED') {
+        if (stepInst.status === 'FAILED' || stepInst.status === 'REJECTED') {
+          node.data.isFailed = true
+          node.data.isCompleted = false
+          node.data.isCurrent = false
+        } else if (stepInst.status === 'COMPLETED') {
           node.data.isCompleted = true
           node.data.isCurrent = false
+          node.data.isFailed = false
         } else if (stepInst.status === 'IN_PROGRESS') {
           node.data.isCurrent = true
           node.data.isCompleted = false
+          node.data.isFailed = false
         } else {
           // NOT_STARTED or others
           node.data.isCompleted = false
           node.data.isCurrent = false
+          node.data.isFailed = false
         }
       })
     }
@@ -237,6 +251,7 @@ function WorkItemViewer({ workItemId, onBack }) {
       COMPLETED: { label: 'Completed', color: 'success' },
       NOT_STARTED: { label: 'Not Started', color: 'default' },
       REJECTED: { label: 'Rejected', color: 'error' },
+      FAILED: { label: 'Failed', color: 'error' },
     }
     const statusInfo = statusMap[status] || { label: status, color: 'default' }
     return <Chip label={statusInfo.label} color={statusInfo.color} size="small" />
@@ -450,7 +465,9 @@ function WorkItemViewer({ workItemId, onBack }) {
                                 p: 1,
                                 borderRadius: 1,
                                 bgcolor:
-                                  step.status === 'COMPLETED'
+                                  step.status === 'FAILED' || step.status === 'REJECTED'
+                                    ? '#fee2e2'
+                                    : step.status === 'COMPLETED'
                                     ? '#d1fae5'
                                     : step.status === 'IN_PROGRESS'
                                     ? '#dbeafe'
@@ -459,7 +476,7 @@ function WorkItemViewer({ workItemId, onBack }) {
                             >
                               <Stack direction="row" spacing={1} alignItems="center">
                                 <Typography variant="body2" sx={{ fontSize: '0.8rem' }}>
-                                  {step.status === 'COMPLETED' ? '✅' : step.status === 'IN_PROGRESS' ? '🔄' : '⏳'}
+                                  {step.status === 'FAILED' || step.status === 'REJECTED' ? '❌' : step.status === 'COMPLETED' ? '✅' : step.status === 'IN_PROGRESS' ? '🔄' : '⏳'}
                                 </Typography>
                                 <Typography variant="body2" sx={{ fontSize: '0.8rem' }}>
                                   {step.name}
