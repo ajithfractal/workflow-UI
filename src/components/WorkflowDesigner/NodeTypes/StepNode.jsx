@@ -5,41 +5,18 @@ import '../../../styles/NodeTypes.css'
 function StepNode({ data }) {
   const { step, order, isParallel, parallelGroupSize, isCompleted, isCurrent, isFailed } = data
 
-  const getBorderColor = () => {
-    if (isFailed) return '#ef4444'
-    if (isCompleted) return '#10b981'
-    if (isCurrent) return '#3b82f6'
-    if (isParallel) return '#f59e0b'
-    return '#3b82f6'
-  }
-
-  const getBackgroundColor = () => {
-    if (isFailed) return '#fee2e2'
-    if (isCompleted) return '#d1fae5'
-    if (isCurrent) return '#dbeafe'
-    if (isParallel) return '#fffbeb'
-    return 'white'
-  }
-
   return (
     <Box
       className={`node step-node ${isParallel ? 'parallel' : ''} ${isCompleted ? 'completed' : ''} ${isCurrent ? 'current' : ''} ${isFailed ? 'failed' : ''}`}
       sx={{
-        background: getBackgroundColor(),
-        border: `3px solid ${getBorderColor()}`,
         padding: 2,
         borderRadius: 2,
         minWidth: 180,
-        boxShadow: 2,
         cursor: 'pointer',
-        '&:hover': {
-          boxShadow: 4,
-          transform: 'translateY(-2px)',
-        },
       }}
     >
       <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
-        <Typography variant="body2" sx={{ fontWeight: 600, color: '#1e293b' }}>
+        <Typography variant="body2" className="node-title" sx={{ fontWeight: 600 }}>
           {step?.name || data.label}
         </Typography>
         <Stack direction="row" spacing={0.5}>
@@ -98,26 +75,25 @@ function StepNode({ data }) {
           )}
         </Stack>
       </Stack>
-      <Box sx={{ fontSize: '0.75rem', color: '#64748b' }}>
+      <Box className="node-content">
         <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
           <Chip
             label={step?.approvalType || 'ALL'}
             size="small"
+            className="approval-type"
             sx={{
-              bgcolor: '#dbeafe',
-              color: '#1e40af',
               fontSize: '0.7rem',
               height: 18,
             }}
           />
           {step?.approvers && (
-            <Typography variant="caption" color="text.secondary">
+            <Typography variant="caption" className="approver-count">
               {step.approvers.length} approvers
             </Typography>
           )}
         </Stack>
         {isParallel && (
-          <Typography variant="caption" sx={{ color: '#d97706', fontStyle: 'italic', display: 'block', mt: 0.5 }}>
+          <Typography variant="caption" sx={{ fontStyle: 'italic', display: 'block', mt: 0.5, color: 'var(--node-content)' }}>
             Order {order} - Parallel
           </Typography>
         )}

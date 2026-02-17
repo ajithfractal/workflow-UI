@@ -231,7 +231,7 @@ function WorkItemList({ workflowId, onCreateWorkItem, onViewWorkItem, onBack }) 
                 startIcon={<Add />}
                 onClick={onCreateWorkItem}
               >
-                Create Work Item
+                Create and Submit Work Item
               </Button>
             )}
           </Stack>
@@ -252,7 +252,7 @@ function WorkItemList({ workflowId, onCreateWorkItem, onViewWorkItem, onBack }) 
                 startIcon={<Add />}
                 onClick={onCreateWorkItem}
               >
-                Create Work Item
+                Create and Submit Work Item
               </Button>
             )}
           </Box>

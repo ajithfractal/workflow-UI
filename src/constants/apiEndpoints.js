@@ -24,6 +24,7 @@ export const WORKFLOW_ENDPOINTS = {
 export const STEP_ENDPOINTS = {
   CREATE: (workflowId) => `${API_BASE}/workflow-definitions/${workflowId}/steps`,
   UPDATE: (stepId) => `${API_BASE}/workflow-definitions/steps/${stepId}`,
+  UPDATE_DEFINITION: (workflowId, stepId) => `${API_BASE}/workflow-definitions/${workflowId}/steps/${stepId}`,
   DELETE: (stepId) => `${API_BASE}/workflow-definitions/steps/${stepId}`,
 }
 
@@ -33,6 +34,14 @@ export const APPROVER_ENDPOINTS = {
   REMOVE: (approverId) => `${API_BASE}/workflow-definitions/approvers/${approverId}`,
 }
 
+// Step Rule endpoints
+export const STEP_RULE_ENDPOINTS = {
+  CREATE: `${API_BASE}/workflow-definitions/steps/rules`,
+  LIST: (stepDefinitionId) => `${API_BASE}/workflow-definitions/steps/${stepDefinitionId}/rules`,
+  UPDATE: (ruleId) => `${API_BASE}/workflow-definitions/steps/rules/${ruleId}`,
+  DELETE: (ruleId) => `${API_BASE}/workflow-definitions/steps/rules/${ruleId}`,
+}
+
 // Work Item endpoints
 export const WORK_ITEM_ENDPOINTS = {
   LIST: `${API_BASE}/work-items`,
@@ -40,6 +49,7 @@ export const WORK_ITEM_ENDPOINTS = {
   GET: (workItemId) => `${API_BASE}/work-items/${workItemId}`,
   CREATE: `${API_BASE}/work-items`,
   SUBMIT: (workItemId) => `${API_BASE}/work-items/${workItemId}/submit`,
+  CREATE_AND_SUBMIT: `${API_BASE}/work-items/submit`,
   VERSIONS: (workItemId) => `${API_BASE}/work-items/${workItemId}/versions`,
   PROGRESS: (workItemId) => `${API_BASE}/work-items/${workItemId}/workflow-progress`,
   ARCHIVE: (workItemId) => `${API_BASE}/work-items/${workItemId}/archive`,
@@ -54,6 +64,7 @@ export const WORKFLOW_EXECUTION_ENDPOINTS = {
 // Task endpoints (approver actions)
 export const TASK_ENDPOINTS = {
   LIST: `${API_BASE}/tasks`,
+  SEARCH: `${API_BASE}/tasks/search`,
   APPROVE: (taskId) => `${API_BASE}/tasks/${taskId}/approve`,
   REJECT: (taskId) => `${API_BASE}/tasks/${taskId}/reject`,
 }

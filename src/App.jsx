@@ -1,18 +1,19 @@
 import { useState } from 'react'
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom'
-import { Box, AppBar, Toolbar, Typography, Container, Button, Stack } from '@mui/material'
-import { Home, SupervisorAccount } from '@mui/icons-material'
+import { Box, AppBar, Toolbar, Typography, Container, Button, Stack, IconButton, Tooltip } from '@mui/material'
+import { Home, SupervisorAccount, DarkMode, LightMode } from '@mui/icons-material'
+import { useColorMode } from './theme/ColorModeContext'
 import WorkflowList from './components/WorkflowList/WorkflowList'
 import WorkflowDesigner from './components/WorkflowDesigner/WorkflowDesigner'
 import WorkItemList from './components/WorkItemList/WorkItemList'
-import WorkItemForm from './components/WorkItemForm/WorkItemForm'
+import WorkItemSubmitForm from './components/WorkItemSubmitForm/WorkItemSubmitForm'
 import WorkItemViewer from './components/WorkItemViewer/WorkItemViewer'
 import ApproverDashboard from './components/ApproverDashboard/ApproverDashboard'
 
 function MainApp() {
   const [selectedWorkflowId, setSelectedWorkflowId] = useState(null)
   const [selectedWorkItemId, setSelectedWorkItemId] = useState(null)
-  const [view, setView] = useState('list') // 'list', 'designer', 'workItems', 'workItemForm', 'workItemViewer'
+  const [view, setView] = useState('list') // 'list', 'designer', 'workItems', 'workItemSubmitForm', 'workItemViewer'
 
   const handleCreateWorkflow = () => {
     setSelectedWorkflowId(null)
@@ -30,8 +31,8 @@ function MainApp() {
     setView('workItems')
   }
 
-  const handleCreateWorkItem = () => {
-    setView('workItemForm')
+  const handleCreateAndSubmitWorkItem = () => {
+    setView('workItemSubmitForm')
   }
 
   const handleViewWorkItem = (workItemId) => {
@@ -63,9 +64,9 @@ function MainApp() {
             onCreateWorkflow={handleCreateWorkflow}
             onEditWorkflow={handleEditWorkflow}
             onViewWorkItems={handleViewWorkItems}
-            onCreateWorkItem={() => {
+            onCreateAndSubmitWorkItem={() => {
               setSelectedWorkflowId(null)
-              setView('workItemForm')
+              setView('workItemSubmitForm')
             }}
             onViewWorkItem={handleViewWorkItem}
           />
@@ -75,7 +76,7 @@ function MainApp() {
         <WorkflowDesigner
           workflowId={selectedWorkflowId}
           onBack={handleBackToList}
-          onCreateWorkItem={handleCreateWorkItem}
+          onCreateWorkItem={handleCreateAndSubmitWorkItem}
           onNavigateToWorkflow={(newWorkflowId) => {
             setSelectedWorkflowId(newWorkflowId)
             // view stays as 'designer'
@@ -86,17 +87,15 @@ function MainApp() {
         <Container maxWidth="xl" sx={{ py: 3 }}>
           <WorkItemList
             workflowId={selectedWorkflowId}
-            onCreateWorkItem={handleCreateWorkItem}
+            onCreateWorkItem={handleCreateAndSubmitWorkItem}
             onViewWorkItem={handleViewWorkItem}
             onBack={handleBackToList}
           />
         </Container>
       )}
-      {view === 'workItemForm' && (
+      {view === 'workItemSubmitForm' && (
         <Container maxWidth="md" sx={{ py: 3 }}>
-          <WorkItemForm
-            workflowId={selectedWorkflowId}
-            workflowName={''}
+          <WorkItemSubmitForm
             onClose={() => {
               if (selectedWorkflowId) {
                 setView('workItems')
@@ -123,6 +122,7 @@ function MainApp() {
 function App() {
   const navigate = useNavigate()
   const location = useLocation()
+  const { mode, toggleColorMode } = useColorMode()
 
   const isApproverPage = location.pathname === '/approvers'
 
@@ -138,7 +138,7 @@ function App() {
           >
             Workflow Designer
           </Typography>
-          <Stack direction="row" spacing={1} sx={{ ml: 4 }}>
+          <Stack direction="row" spacing={1} sx={{ ml: 4, flexGrow: 1 }}>
             <Button
               color="inherit"
               startIcon={<Home />}
@@ -166,6 +166,13 @@ function App() {
               Approvers
             </Button>
           </Stack>
+
+          {/* Dark / Light mode toggle */}
+          <Tooltip title={mode === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}>
+            <IconButton color="inherit" onClick={toggleColorMode} sx={{ ml: 1 }}>
+              {mode === 'dark' ? <LightMode /> : <DarkMode />}
+            </IconButton>
+          </Tooltip>
         </Toolbar>
       </AppBar>
       <Box component="main" sx={{ flex: 1, overflow: 'auto', bgcolor: 'background.default' }}>

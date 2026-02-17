@@ -29,7 +29,7 @@ function Toolbar({
   isCreatingVersion,
 }) {
   return (
-    <AppBar position="static" sx={{ bgcolor: 'background.paper', color: 'text.primary', boxShadow: 1 }}>
+    <AppBar position="fixed" sx={{ bgcolor: 'background.paper', color: 'text.primary', boxShadow: 1, zIndex: (theme) => theme.zIndex.drawer + 1 }}>
       <MuiToolbar>
         <IconButton
           edge="start"
@@ -79,9 +79,9 @@ function Toolbar({
               variant="outlined"
               startIcon={<ListIcon />}
               onClick={onCreateWorkItem}
-              title="Create Work Item"
+              title="Create and Submit Work Item"
             >
-              Create Work Item
+              Create and Submit Work Item
             </Button>
           )}
 
@@ -97,24 +97,24 @@ function Toolbar({
             </Button>
           ) : (
             <>
-              {canAddStep && (
-                <Button
-                  variant="outlined"
-                  startIcon={<Add />}
-                  onClick={onAddStep}
-                  title="Add Step"
-                >
-                  Add Step
-                </Button>
-              )}
-              <Button
-                variant="contained"
-                startIcon={isSaving ? <CircularProgress size={16} color="inherit" /> : <Save />}
-                onClick={onSave}
-                disabled={isSaving}
-              >
-                {isSaving ? 'Saving...' : 'Save Workflow'}
-              </Button>
+          {canAddStep && (
+            <Button
+              variant="outlined"
+              startIcon={<Add />}
+              onClick={onAddStep}
+              title="Add Step"
+            >
+              Add Step
+            </Button>
+          )}
+          <Button
+            variant="contained"
+            startIcon={isSaving ? <CircularProgress size={16} color="inherit" /> : <Save />}
+            onClick={onSave}
+            disabled={isSaving}
+          >
+            {isSaving ? 'Saving...' : 'Save Workflow'}
+          </Button>
             </>
           )}
         </Stack>

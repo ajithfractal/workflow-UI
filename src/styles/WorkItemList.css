@@ -1,8 +1,8 @@
 .work-item-list {
   padding: 2rem;
-  background: white;
+  background: var(--bg-primary);
   border-radius: 0.5rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 3px var(--shadow-sm);
 }
 
 .work-item-list-header {
@@ -15,7 +15,7 @@
 .work-item-list-header h2 {
   font-size: 1.5rem;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--text-primary);
   margin: 0;
 }
 
@@ -25,27 +25,27 @@
 }
 
 .work-item-table thead {
-  background: #f8fafc;
+  background: var(--bg-subtle);
 }
 
 .work-item-table th {
   padding: 0.75rem 1rem;
   text-align: left;
   font-weight: 600;
-  color: #475569;
+  color: var(--text-muted);
   font-size: 0.875rem;
-  border-bottom: 2px solid #e2e8f0;
+  border-bottom: 2px solid var(--border-color);
 }
 
 .work-item-table td {
   padding: 0.75rem 1rem;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--border-color);
   font-size: 0.875rem;
-  color: #334155;
+  color: var(--text-dark);
 }
 
 .work-item-table tbody tr:hover {
-  background: #f8fafc;
+  background: var(--bg-hover);
 }
 
 .status-draft {
@@ -76,4 +76,35 @@
 .status-unknown {
   background: #f1f5f9;
   color: #64748b;
+}
+
+/* Dark mode status badges — keep text readable */
+[data-theme="dark"] .status-draft {
+  background: #334155;
+  color: #cbd5e1;
+}
+
+[data-theme="dark"] .status-submitted {
+  background: #1e3a5f;
+  color: #93c5fd;
+}
+
+[data-theme="dark"] .status-in-progress {
+  background: #78350f;
+  color: #fde68a;
+}
+
+[data-theme="dark"] .status-completed {
+  background: #064e3b;
+  color: #6ee7b7;
+}
+
+[data-theme="dark"] .status-rejected {
+  background: #7f1d1d;
+  color: #fca5a5;
+}
+
+[data-theme="dark"] .status-unknown {
+  background: #334155;
+  color: #cbd5e1;
 }

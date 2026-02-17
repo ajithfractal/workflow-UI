@@ -1,8 +1,77 @@
+/* ─── CSS Custom Properties for theming ─── */
+:root {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8fafc;
+  --bg-hover: #f1f5f9;
+  --bg-subtle: #f8fafc;
+  --bg-input: #ffffff;
+  --text-primary: #1e293b;
+  --text-secondary: #64748b;
+  --text-muted: #475569;
+  --text-dark: #334155;
+  --border-color: #e2e8f0;
+  --border-light: #cbd5e1;
+  --shadow-sm: rgba(0, 0, 0, 0.1);
+  --shadow-md: rgba(0, 0, 0, 0.15);
+  --shadow-lg: rgba(0, 0, 0, 0.2);
+
+  /* Node specific */
+  --node-bg: #ffffff;
+  --node-text: #1e293b;
+  --node-content: #64748b;
+  --approval-bg: #dbeafe;
+  --approval-text: #1e40af;
+}
+
+[data-theme="dark"] {
+  --bg-primary: #1e293b;
+  --bg-secondary: #0f172a;
+  --bg-hover: #334155;
+  --bg-subtle: #1e293b;
+  --bg-input: #334155;
+  --text-primary: #f1f5f9;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+  --text-dark: #e2e8f0;
+  --border-color: #334155;
+  --border-light: #475569;
+  --shadow-sm: rgba(0, 0, 0, 0.3);
+  --shadow-md: rgba(0, 0, 0, 0.4);
+  --shadow-lg: rgba(0, 0, 0, 0.5);
+
+  /* Node specific */
+  --node-bg: #1e293b;
+  --node-text: #f1f5f9;
+  --node-content: #94a3b8;
+  --approval-bg: #1e3a5f;
+  --approval-text: #93c5fd;
+}
+
 /* MUI CssBaseline handles most resets */
-/* Additional global styles if needed */
 body {
   margin: 0;
   padding: 0;
 }
 
-/* ReactFlow specific styles - keep as is */
+/* ReactFlow dark mode background */
+[data-theme="dark"] .react-flow__background {
+  background: #0f172a;
+}
+
+[data-theme="dark"] .react-flow__minimap {
+  background: #1e293b;
+}
+
+[data-theme="dark"] .react-flow__controls button {
+  background: #334155;
+  color: #f1f5f9;
+  border-color: #475569;
+}
+
+[data-theme="dark"] .react-flow__controls button:hover {
+  background: #475569;
+}
+
+[data-theme="dark"] .react-flow__edge-path {
+  stroke: #64748b;
+}

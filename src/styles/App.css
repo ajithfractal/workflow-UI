@@ -9,7 +9,7 @@
   background: #1e293b;
   color: white;
   padding: 1rem 2rem;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 4px var(--shadow-sm);
 }
 
 .app-header h1 {
@@ -20,7 +20,7 @@
 .app-main {
   flex: 1;
   overflow: auto;
-  background: #f8fafc;
+  background: var(--bg-secondary);
 }
 
 .loading,

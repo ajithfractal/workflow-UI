@@ -21,7 +21,7 @@ import Loader from '../Loader/Loader'
 import Modal from '../Modal/Modal'
 import WorkItemList from '../WorkItemList/WorkItemList'
 
-function WorkflowList({ onCreateWorkflow, onEditWorkflow, onViewWorkItems, onCreateWorkItem, onViewWorkItem }) {
+function WorkflowList({ onCreateWorkflow, onEditWorkflow, onViewWorkItems, onCreateAndSubmitWorkItem, onViewWorkItem }) {
   const { data: workflows = [], isLoading, error } = useWorkflows()
   const deleteWorkflowMutation = useDeleteWorkflow()
   const { modal, showAlert, showConfirm, closeModal } = useModal()
@@ -58,13 +58,13 @@ function WorkflowList({ onCreateWorkflow, onEditWorkflow, onViewWorkItems, onCre
             Workflows
           </Typography>
           <Stack direction="row" spacing={2}>
-            {onCreateWorkItem && (
+            {onCreateAndSubmitWorkItem && (
               <Button
                 variant="contained"
                 startIcon={<Add />}
-                onClick={onCreateWorkItem}
+                onClick={onCreateAndSubmitWorkItem}
               >
-                Create Workflow Instance
+                Create and Submit Work Item
               </Button>
             )}
             <Button
@@ -138,7 +138,7 @@ function WorkflowList({ onCreateWorkflow, onEditWorkflow, onViewWorkItems, onCre
                           {deleteWorkflowMutation.isPending ? (
                             <CircularProgress size={16} />
                           ) : (
-                            <Delete fontSize="small" />
+                          <Delete fontSize="small" />
                           )}
                         </IconButton>
                       </Stack>
@@ -159,7 +159,7 @@ function WorkflowList({ onCreateWorkflow, onEditWorkflow, onViewWorkItems, onCre
         {onViewWorkItem && (
           <WorkItemList
             workflowId={null}
-            onCreateWorkItem={onCreateWorkItem}
+            onCreateWorkItem={onCreateAndSubmitWorkItem}
             onViewWorkItem={onViewWorkItem}
             onBack={null}
           />

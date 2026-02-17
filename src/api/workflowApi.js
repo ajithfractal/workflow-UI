@@ -3,6 +3,7 @@ import {
   WORKFLOW_ENDPOINTS,
   STEP_ENDPOINTS,
   APPROVER_ENDPOINTS,
+  STEP_RULE_ENDPOINTS,
   WORK_ITEM_ENDPOINTS,
   WORKFLOW_EXECUTION_ENDPOINTS,
   TASK_ENDPOINTS,
@@ -70,10 +71,20 @@ export const workflowApi = {
     return response.data
   },
 
-  // Update step
+  // Update step (legacy endpoint - kept for backward compatibility)
   updateStep: async (stepId, stepData, userId = 'system') => {
     const response = await api.put(
       STEP_ENDPOINTS.UPDATE(stepId),
+      stepData,
+      { params: { [QUERY_PARAMS.UPDATED_BY]: userId } }
+    )
+    return response.data
+  },
+
+  // Update step definition (new endpoint with workflowId)
+  updateStepDefinition: async (workflowId, stepId, stepData, userId = 'system') => {
+    const response = await api.put(
+      STEP_ENDPOINTS.UPDATE_DEFINITION(workflowId, stepId),
       stepData,
       { params: { [QUERY_PARAMS.UPDATED_BY]: userId } }
     )
@@ -101,6 +112,48 @@ export const workflowApi = {
   // Remove approver
   removeApprover: async (approverId) => {
     const response = await api.delete(APPROVER_ENDPOINTS.REMOVE(approverId))
+    return response.data
+  },
+
+  // ========== Step Rule APIs ==========
+
+  // Create rule for step
+  createStepRule: async (stepDefinitionId, ruleData, userId = 'system') => {
+    if (!stepDefinitionId) {
+      throw new Error('Step definition ID is required')
+    }
+    // Include stepDefinitionId in the request body
+    const requestBody = {
+      ...ruleData,
+      stepDefinitionId: String(stepDefinitionId),
+    }
+    const response = await api.post(
+      STEP_RULE_ENDPOINTS.CREATE,
+      requestBody,
+      { params: { [QUERY_PARAMS.CREATED_BY]: userId } }
+    )
+    return response.data
+  },
+
+  // List rules for step
+  listStepRules: async (stepDefinitionId) => {
+    const response = await api.get(STEP_RULE_ENDPOINTS.LIST(stepDefinitionId))
+    return response.data
+  },
+
+  // Update rule
+  updateStepRule: async (ruleId, ruleData, userId = 'system') => {
+    const response = await api.put(
+      STEP_RULE_ENDPOINTS.UPDATE(ruleId),
+      ruleData,
+      { params: { [QUERY_PARAMS.UPDATED_BY]: userId } }
+    )
+    return response.data
+  },
+
+  // Delete rule
+  deleteStepRule: async (ruleId) => {
+    const response = await api.delete(STEP_RULE_ENDPOINTS.DELETE(ruleId))
     return response.data
   },
 
@@ -191,6 +244,16 @@ export const workflowApi = {
     return response.data
   },
 
+  // Create and submit work item in one call
+  createAndSubmitWorkItem: async (submitData, userId = 'system') => {
+    const response = await api.post(
+      WORK_ITEM_ENDPOINTS.CREATE_AND_SUBMIT,
+      submitData,
+      { params: { [QUERY_PARAMS.SUBMITTED_BY]: userId } }
+    )
+    return response.data
+  },
+
   // Get workflow progress
   getWorkflowProgress: async (workItemId) => {
     const response = await api.get(WORK_ITEM_ENDPOINTS.PROGRESS(workItemId))
@@ -253,10 +316,18 @@ export const workflowApi = {
 
   // ========== Task / Approver APIs ==========
 
-  // Get tasks by approver ID
-  getTasksByApprover: async (approverId) => {
-    const response = await api.get(TASK_ENDPOINTS.LIST, {
-      params: { approverId },
+  // Search tasks with pagination and filters (new API)
+  searchTasks: async ({ page = 0, size = 10, approverId, status, search, startTime, endTime, timeCheckIn } = {}) => {
+    const body = {}
+    if (approverId) body.approverId = approverId
+    if (status) body.status = status
+    if (search) body.search = search
+    if (startTime) body.startTime = startTime
+    if (endTime) body.endTime = endTime
+    if (timeCheckIn) body.timeCheckIn = timeCheckIn
+
+    const response = await api.post(TASK_ENDPOINTS.SEARCH, body, {
+      params: { page, size },
     })
     return response.data
   },

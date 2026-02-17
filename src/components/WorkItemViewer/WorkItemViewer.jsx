@@ -22,7 +22,11 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
 } from '@mui/material'
+import { ExpandMore } from '@mui/icons-material'
 import { ArrowBack, Send, Close, PlayArrow } from '@mui/icons-material'
 import { useWorkItem, useWorkflowProgress, useSubmitWorkItem, useStartWorkflow } from '../../hooks/queries/useWorkItems'
 import { useWorkflow, useWorkflows } from '../../hooks/queries/useWorkflows'
@@ -63,10 +67,18 @@ function WorkItemViewer({ workItemId, onBack }) {
   const [selectedWorkflowDefId, setSelectedWorkflowDefId] = useState('')
 
   // Enable polling only when workflow instance is actively running
+  // Stop polling when workflow is completed, failed, or cancelled
   useEffect(() => {
     const status = progress?.workflowInstance?.status
-    setIsWfActive(status === 'IN_PROGRESS')
-  }, [progress?.workflowInstance?.status])
+    // Only poll if status is explicitly IN_PROGRESS
+    // Stop polling for COMPLETED, FAILED, CANCELLED, or any other status
+    const shouldPoll = status === 'IN_PROGRESS'
+    
+    // Only update if state actually changed to prevent unnecessary re-renders
+    if (isWfActive !== shouldPoll) {
+      setIsWfActive(shouldPoll)
+    }
+  }, [progress?.workflowInstance?.status, isWfActive])
 
   // Extract workflowId from progress response (progress API returns workflowInstance)
   // Fall back to workItem fields if available
@@ -294,6 +306,13 @@ function WorkItemViewer({ workItemId, onBack }) {
     tasks: s.tasks,
   })) || []
 
+  // Calculate progress percentages for multi-color bar
+  const completedSteps = stepSummary.filter(s => s.status === 'COMPLETED').length
+  const failedSteps = stepSummary.filter(s => s.status === 'FAILED' || s.status === 'REJECTED').length
+  const completedPercentage = totalSteps > 0 ? (completedSteps / totalSteps) * 100 : 0
+  const failedPercentage = totalSteps > 0 ? (failedSteps / totalSteps) * 100 : 0
+  const remainingPercentage = 100 - completedPercentage - failedPercentage
+
   return (
     <Box>
       <Paper sx={{ p: 3, mb: 3 }}>
@@ -355,14 +374,35 @@ function WorkItemViewer({ workItemId, onBack }) {
 
       <Grid container spacing={3}>
         <Grid item xs={12} md={4}>
-          <Stack spacing={2}>
+          <Box
+            sx={{
+              maxHeight: 'calc(100vh - 200px)',
+              overflowY: 'auto',
+              pr: 1,
+              '&::-webkit-scrollbar': {
+                width: '8px',
+              },
+              '&::-webkit-scrollbar-track': {
+                backgroundColor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)',
+                borderRadius: '4px',
+              },
+              '&::-webkit-scrollbar-thumb': {
+                backgroundColor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)',
+                borderRadius: '4px',
+                '&:hover': {
+                  backgroundColor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)',
+                },
+              },
+            }}
+          >
+            <Stack spacing={2}>
             {/* Details Card */}
             <Card>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
+              <CardContent sx={{ pb: 2 }}>
+                <Typography variant="h6" gutterBottom sx={{ fontSize: '1rem', fontWeight: 600 }}>
                   Details
                 </Typography>
-                <Stack spacing={2} sx={{ mt: 2 }}>
+                <Stack spacing={1.5} sx={{ mt: 1.5 }}>
                   <Box>
                     <Typography variant="caption" color="text.secondary">
                       Work Item Status:
@@ -407,37 +447,75 @@ function WorkItemViewer({ workItemId, onBack }) {
               </CardContent>
             </Card>
 
-            {/* Progress Card */}
+            {/* Progress Accordion */}
             {progress && (
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom>
+              <Accordion defaultExpanded>
+                <AccordionSummary
+                  expandIcon={<ExpandMore />}
+                  aria-controls="progress-content"
+                  id="progress-header"
+                >
+                  <Typography variant="h6" sx={{ fontSize: '1rem', fontWeight: 600 }}>
                     Progress
                   </Typography>
-                  <Stack spacing={2} sx={{ mt: 2 }}>
+                </AccordionSummary>
+                <AccordionDetails>
+                  <Stack spacing={1.5}>
                     {/* Progress bar */}
                     <Box>
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
                         <Typography variant="body2" fontWeight={600}>
-                          {completedCount} of {totalSteps} steps completed
+                          {completedSteps} of {totalSteps} steps fully completed
                         </Typography>
                         <Typography variant="body2" fontWeight={600}>
-                          {percentage}%
+                          {Math.round(completedPercentage)}%
                         </Typography>
                       </Box>
-                      <LinearProgress
-                        variant="determinate"
-                        value={percentage}
-                        sx={{
+                      {/* Custom multi-color progress bar */}
+                      <Box
+                        sx={(theme) => ({
                           height: 8,
                           borderRadius: 4,
-                          bgcolor: '#e0e0e0',
-                          '& .MuiLinearProgress-bar': {
-                            borderRadius: 4,
-                            bgcolor: percentage === 100 ? '#10b981' : '#3b82f6',
-                          },
-                        }}
-                      />
+                          bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.1)' : '#e0e0e0',
+                          position: 'relative',
+                          overflow: 'hidden',
+                          display: 'flex',
+                        })}
+                      >
+                        {/* Green portion for completed steps */}
+                        {completedPercentage > 0 && (
+                          <Box
+                            sx={{
+                              width: `${completedPercentage}%`,
+                              height: '100%',
+                              bgcolor: '#10b981',
+                              borderRadius: completedPercentage === 100 ? '4px' : '4px 0 0 4px',
+                            }}
+                          />
+                        )}
+                        {/* Red portion for failed/rejected steps */}
+                        {failedPercentage > 0 && (
+                          <Box
+                            sx={{
+                              width: `${failedPercentage}%`,
+                              height: '100%',
+                              bgcolor: '#ef4444',
+                              borderRadius: completedPercentage === 0 && failedPercentage === 100 ? '4px' : '0',
+                            }}
+                          />
+                        )}
+                        {/* Grey portion for remaining/not started steps */}
+                        {remainingPercentage > 0 && (
+                          <Box
+                            sx={(theme) => ({
+                              width: `${remainingPercentage}%`,
+                              height: '100%',
+                              bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.1)' : '#e0e0e0',
+                              borderRadius: '0 4px 4px 0',
+                            })}
+                          />
+                        )}
+                      </Box>
                     </Box>
 
                     {currentStepName && (
@@ -458,7 +536,7 @@ function WorkItemViewer({ workItemId, onBack }) {
                           {stepSummary.map((step, idx) => (
                             <Box
                               key={idx}
-                              sx={{
+                              sx={(theme) => ({
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'space-between',
@@ -466,13 +544,13 @@ function WorkItemViewer({ workItemId, onBack }) {
                                 borderRadius: 1,
                                 bgcolor:
                                   step.status === 'FAILED' || step.status === 'REJECTED'
-                                    ? '#fee2e2'
+                                    ? (theme.palette.mode === 'dark' ? 'rgba(239,68,68,0.15)' : '#fee2e2')
                                     : step.status === 'COMPLETED'
-                                    ? '#d1fae5'
+                                    ? (theme.palette.mode === 'dark' ? 'rgba(16,185,129,0.15)' : '#d1fae5')
                                     : step.status === 'IN_PROGRESS'
-                                    ? '#dbeafe'
-                                    : '#f5f5f5',
-                              }}
+                                    ? (theme.palette.mode === 'dark' ? 'rgba(59,130,246,0.15)' : '#dbeafe')
+                                    : (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : '#f5f5f5'),
+                              })}
                             >
                               <Stack direction="row" spacing={1} alignItems="center">
                                 <Typography variant="body2" sx={{ fontSize: '0.8rem' }}>
@@ -489,10 +567,74 @@ function WorkItemViewer({ workItemId, onBack }) {
                       </Box>
                     )}
                   </Stack>
-                </CardContent>
-              </Card>
+                </AccordionDetails>
+              </Accordion>
+            )}
+
+            {/* Variables Accordion */}
+            {(workItem?.latestVersion?.variables || workItem?.versions?.[0]?.variables) && (
+              <Accordion>
+                <AccordionSummary
+                  expandIcon={<ExpandMore />}
+                  aria-controls="variables-content"
+                  id="variables-header"
+                >
+                  <Typography variant="h6" sx={{ fontSize: '1rem', fontWeight: 600 }}>
+                    Variables
+                  </Typography>
+                </AccordionSummary>
+                <AccordionDetails>
+                  <Stack spacing={0.5}>
+                    {Object.entries(workItem?.latestVersion?.variables || workItem?.versions?.[0]?.variables || {}).map(([key, value]) => {
+                      // Format the value for display
+                      let displayValue = value
+                      if (typeof value === 'boolean') {
+                        displayValue = value ? 'true' : 'false'
+                      } else if (typeof value === 'object' && value !== null) {
+                        displayValue = JSON.stringify(value, null, 2)
+                      } else {
+                        displayValue = String(value)
+                      }
+
+                      return (
+                        <Box
+                          key={key}
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            py: 0.5,
+                            px: 1,
+                            minHeight: '32px',
+                            border: 1,
+                            borderColor: 'divider',
+                            borderRadius: 0.5,
+                            bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.02)',
+                          }}
+                        >
+                          <Typography variant="caption" color="text.secondary" sx={{ minWidth: '120px', textTransform: 'capitalize', fontSize: '0.7rem', fontWeight: 500 }}>
+                            {key.replace(/([A-Z])/g, ' $1').trim()}:
+                          </Typography>
+                          <Typography 
+                            variant="body2" 
+                            sx={{ 
+                              fontWeight: 500,
+                              fontSize: '0.75rem',
+                              fontFamily: typeof value === 'number' || typeof value === 'boolean' ? 'inherit' : 'monospace',
+                              wordBreak: 'break-word',
+                              flex: 1,
+                            }}
+                          >
+                            {displayValue}
+                          </Typography>
+                        </Box>
+                      )
+                    })}
+                  </Stack>
+                </AccordionDetails>
+              </Accordion>
             )}
           </Stack>
+          </Box>
         </Grid>
 
         {/* Workflow Diagram */}

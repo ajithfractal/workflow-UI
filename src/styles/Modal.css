@@ -22,9 +22,9 @@
 }
 
 .modal-container {
-  background: white;
+  background: var(--bg-primary);
   border-radius: 0.5rem;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 20px 25px -5px var(--shadow-sm), 0 10px 10px -5px var(--shadow-sm);
   max-width: 500px;
   width: 90%;
   max-height: 90vh;
@@ -50,7 +50,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 1.5rem;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .modal-title-wrapper {
@@ -78,7 +78,7 @@
 .modal-title {
   font-size: 1.25rem;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--text-primary);
   margin: 0;
 }
 
@@ -87,7 +87,7 @@
   border: none;
   cursor: pointer;
   padding: 0.25rem;
-  color: #64748b;
+  color: var(--text-secondary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -96,8 +96,8 @@
 }
 
 .modal-close-btn:hover {
-  background: #f1f5f9;
-  color: #1e293b;
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 .modal-body {
@@ -107,7 +107,7 @@
 }
 
 .modal-message {
-  color: #475569;
+  color: var(--text-muted);
   font-size: 0.875rem;
   line-height: 1.5;
   margin: 0;
@@ -118,7 +118,7 @@
   gap: 0.75rem;
   justify-content: flex-end;
   padding: 1.5rem;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid var(--border-color);
 }
 
 .btn-danger {

@@ -2,13 +2,13 @@
   padding: 1rem;
   border-radius: 0.5rem;
   min-width: 180px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 2px 8px var(--shadow-md);
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .node:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 4px 12px var(--shadow-lg);
   transform: translateY(-2px);
 }
 
@@ -25,7 +25,7 @@
 }
 
 .step-node {
-  background: white !important;
+  background: var(--node-bg) !important;
   border: 2px solid #3b82f6 !important;
 }
 
@@ -34,6 +34,10 @@
   background: #fffbeb;
   border-width: 3px;
   box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
+}
+
+[data-theme="dark"] .step-node.parallel:not(.completed):not(.current):not(.failed) {
+  background: #451a03 !important;
 }
 
 .step-node.parallel:not(.completed):not(.current):not(.failed):hover {
@@ -48,6 +52,10 @@
   box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3) !important;
 }
 
+[data-theme="dark"] .step-node.completed {
+  background: #064e3b !important;
+}
+
 .step-node.completed:hover {
   box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4) !important;
   border-color: #059669 !important;
@@ -60,6 +68,10 @@
   box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3) !important;
 }
 
+[data-theme="dark"] .step-node.failed {
+  background: #7f1d1d !important;
+}
+
 .step-node.failed:hover {
   box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4) !important;
   border-color: #dc2626 !important;
@@ -70,6 +82,10 @@
   background: #dbeafe !important;
   border-width: 3px !important;
   box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3) !important;
+}
+
+[data-theme="dark"] .step-node.current:not(.completed) {
+  background: #1e3a5f !important;
 }
 
 .step-node.current:not(.completed):hover {
@@ -91,7 +107,7 @@
 
 .node-title {
   font-weight: 600;
-  color: #1e293b;
+  color: var(--node-text);
   font-size: 0.875rem;
 }
 
@@ -132,7 +148,7 @@
 
 .node-content {
   font-size: 0.75rem;
-  color: #64748b;
+  color: var(--node-content);
 }
 
 .node-info {
@@ -143,12 +159,12 @@
 
 .approval-type {
   padding: 0.125rem 0.5rem;
-  background: #dbeafe;
-  color: #1e40af;
+  background: var(--approval-bg);
+  color: var(--approval-text);
   border-radius: 0.25rem;
   font-weight: 500;
 }
 
 .approver-count {
-  color: #64748b;
+  color: var(--node-content);
 }

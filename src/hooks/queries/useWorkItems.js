@@ -52,7 +52,22 @@ export const useWorkflowProgress = (workItemId, { polling = false } = {}) => {
     },
     enabled: !!workItemId,
     // Only poll when explicitly requested (e.g. workflow is IN_PROGRESS)
-    refetchInterval: polling ? 30000 : false,
+    // Increased interval to 60 seconds to reduce API calls
+    refetchInterval: (query) => {
+      // Only poll if polling is enabled AND workflow is still IN_PROGRESS
+      if (!polling) return false
+      const data = query.state.data
+      const status = data?.workflowInstance?.status
+      // Stop polling if workflow is not IN_PROGRESS
+      return status === 'IN_PROGRESS' ? 60000 : false
+    },
+    // Prevent unnecessary refetches
+    refetchOnMount: false, // Never refetch on mount, only use polling interval
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    // Cache the data longer to prevent rapid refetches
+    staleTime: polling ? 50000 : 10 * 60 * 1000, // 50 seconds when polling (less than interval), 10 minutes when not
+    gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
   })
 }
 
@@ -82,6 +97,27 @@ export const useSubmitWorkItem = () => {
       queryClient.invalidateQueries({ queryKey: workItemKeys.detail(variables.workItemId) })
       queryClient.invalidateQueries({ queryKey: workItemKeys.progress(variables.workItemId) })
       queryClient.invalidateQueries({ queryKey: workItemKeys.lists() })
+    },
+  })
+}
+
+// Create and submit work item in one call
+export const useCreateAndSubmitWorkItem = () => {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: async ({ submitData, userId = 'system' }) => {
+      return await workflowApi.createAndSubmitWorkItem(submitData, userId)
+    },
+    onSuccess: (data) => {
+      // Invalidate all work item lists
+      queryClient.invalidateQueries({ queryKey: workItemKeys.lists() })
+      // If response contains workItemId, invalidate that specific item
+      const workItemId = data?.workItemId || data?.id
+      if (workItemId) {
+        queryClient.invalidateQueries({ queryKey: workItemKeys.detail(workItemId) })
+        queryClient.invalidateQueries({ queryKey: workItemKeys.progress(workItemId) })
+      }
     },
   })
 }

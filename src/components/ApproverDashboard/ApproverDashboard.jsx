@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import {
   Box,
   Paper,
@@ -11,6 +11,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TablePagination,
   Chip,
   Stack,
   CircularProgress,
@@ -28,7 +29,7 @@ import {
   Tooltip,
   Fade,
   Divider,
-  Badge,
+  Collapse,
 } from '@mui/material'
 import {
   Search,
@@ -41,10 +42,13 @@ import {
   ThumbDown,
   AccessTime,
   Assignment,
-  FilterList,
   Refresh,
+  FilterList,
+  WorkOutline,
+  AccountTree,
+  Description,
 } from '@mui/icons-material'
-import { useTasksByApprover, useApproveTask, useRejectTask } from '../../hooks/queries/useTasks'
+import { useSearchTasks, useApproveTask, useRejectTask } from '../../hooks/queries/useTasks'
 import { useModal } from '../../hooks/useModal'
 import Modal from '../Modal/Modal'
 import Loader from '../Loader/Loader'
@@ -61,6 +65,8 @@ const getStatusColor = (status) => {
     case 'COMPLETED':
       return 'success'
     case 'IN_PROGRESS':
+      return 'info'
+    case 'IN_REVIEW':
       return 'info'
     case 'NOT_STARTED':
       return 'default'
@@ -105,51 +111,128 @@ const isOverdue = (dueAt, status) => {
   return new Date(dueAt) < new Date()
 }
 
+// Tab index → status value mapping
+const TAB_STATUS_MAP = {
+  0: null,       // All
+  1: 'PENDING',
+  2: 'APPROVED',
+  3: 'REJECTED',
+}
+
 function ApproverDashboard() {
+  // ─── Search / Filter state ───
   const [approverInput, setApproverInput] = useState('')
   const [activeApprover, setActiveApprover] = useState('')
+  const [searchText, setSearchText] = useState('')
+  const [activeSearch, setActiveSearch] = useState('')
+  const [tabValue, setTabValue] = useState(0)
+  const [showFilters, setShowFilters] = useState(false)
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+  const [timeCheckIn, setTimeCheckIn] = useState('createdAt')
+  // "Applied" filter values — only used in API call after user clicks Apply
+  const [activeStartDate, setActiveStartDate] = useState('')
+  const [activeEndDate, setActiveEndDate] = useState('')
+  const [activeTimeCheckIn, setActiveTimeCheckIn] = useState('createdAt')
+
+  // ─── Pagination state ───
+  const [page, setPage] = useState(0)
+  const [rowsPerPage, setRowsPerPage] = useState(10)
+
+  // ─── Action state ───
   const [selectedTask, setSelectedTask] = useState(null)
   const [actionDialogOpen, setActionDialogOpen] = useState(false)
   const [actionType, setActionType] = useState(null) // 'approve' or 'reject'
   const [comment, setComment] = useState('')
-  const [tabValue, setTabValue] = useState(0) // 0 = All, 1 = Pending, 2 = Approved, 3 = Rejected
 
-  const { data: tasks = [], isLoading, error, refetch } = useTasksByApprover(activeApprover)
+  // Build search params (uses "active" filter values only)
+  const searchParams = useMemo(() => {
+    const params = {
+      approverId: activeApprover,
+      page,
+      size: rowsPerPage,
+    }
+    const status = TAB_STATUS_MAP[tabValue]
+    if (status) params.status = status
+    if (activeSearch) params.search = activeSearch
+    if (activeStartDate) params.startTime = new Date(activeStartDate).getTime()
+    if (activeEndDate) params.endTime = new Date(activeEndDate).getTime()
+    if ((activeStartDate || activeEndDate) && activeTimeCheckIn) params.timeCheckIn = activeTimeCheckIn
+    return params
+  }, [activeApprover, page, rowsPerPage, tabValue, activeSearch, activeStartDate, activeEndDate, activeTimeCheckIn])
+
+  const {
+    data: taskResponse,
+    isLoading,
+    error,
+    refetch,
+  } = useSearchTasks(searchParams)
+
   const approveTaskMutation = useApproveTask()
   const rejectTaskMutation = useRejectTask()
   const { modal, showAlert, closeModal } = useModal()
 
-  // Filter tasks by tab
-  const filteredTasks = useMemo(() => {
-    if (tabValue === 0) return tasks
-    const statusMap = { 1: 'PENDING', 2: 'APPROVED', 3: 'REJECTED' }
-    const filterStatus = statusMap[tabValue]
-    return tasks.filter((t) => t.status?.toUpperCase() === filterStatus)
-  }, [tasks, tabValue])
+  // Extract data from paginated response
+  const tasks = taskResponse?.content || []
+  const totalElements = taskResponse?.totalElements || 0
+  const totalPages = taskResponse?.totalPages || 0
 
-  // Count tasks by status
-  const taskCounts = useMemo(() => {
-    const counts = { all: tasks.length, pending: 0, approved: 0, rejected: 0 }
-    tasks.forEach((t) => {
-      const s = t.status?.toUpperCase()
-      if (s === 'PENDING') counts.pending++
-      else if (s === 'APPROVED') counts.approved++
-      else if (s === 'REJECTED') counts.rejected++
-    })
-    return counts
-  }, [tasks])
+  // ─── Handlers ───
 
-  const handleSearch = () => {
+  const handleApproverSearch = useCallback(() => {
     if (approverInput.trim()) {
       setActiveApprover(approverInput.trim())
+      setPage(0)
       setTabValue(0)
+      setActiveSearch('')
+      setSearchText('')
+      setStartDate('')
+      setEndDate('')
+      setTimeCheckIn('createdAt')
+      setActiveStartDate('')
+      setActiveEndDate('')
+      setActiveTimeCheckIn('createdAt')
     }
+  }, [approverInput])
+
+  const handleApproverKeyPress = (e) => {
+    if (e.key === 'Enter') handleApproverSearch()
   }
 
-  const handleKeyPress = (e) => {
-    if (e.key === 'Enter') {
-      handleSearch()
-    }
+  const handleApplyFilters = useCallback(() => {
+    setActiveSearch(searchText.trim())
+    setActiveStartDate(startDate)
+    setActiveEndDate(endDate)
+    setActiveTimeCheckIn(timeCheckIn)
+    setPage(0)
+  }, [searchText, startDate, endDate, timeCheckIn])
+
+  const handleSearchKeyPress = (e) => {
+    if (e.key === 'Enter') handleApplyFilters()
+  }
+
+  const handleTabChange = (_, newValue) => {
+    setTabValue(newValue)
+    setPage(0) // Reset to first page when switching tabs
+  }
+
+  const handleChangePage = (_, newPage) => setPage(newPage)
+
+  const handleChangeRowsPerPage = (e) => {
+    setRowsPerPage(parseInt(e.target.value, 10))
+    setPage(0)
+  }
+
+  const handleClearFilters = () => {
+    setSearchText('')
+    setActiveSearch('')
+    setStartDate('')
+    setEndDate('')
+    setTimeCheckIn('createdAt')
+    setActiveStartDate('')
+    setActiveEndDate('')
+    setActiveTimeCheckIn('createdAt')
+    setPage(0)
   }
 
   const handleOpenAction = (task, type) => {
@@ -199,6 +282,13 @@ function ApproverDashboard() {
 
   const isActionPending = approveTaskMutation.isPending || rejectTaskMutation.isPending
 
+  const hasActiveFilters = activeSearch || activeStartDate || activeEndDate
+  const hasPendingFilterChanges =
+    searchText.trim() !== activeSearch ||
+    startDate !== activeStartDate ||
+    endDate !== activeEndDate ||
+    timeCheckIn !== activeTimeCheckIn
+
   return (
     <Box>
       {/* Header */}
@@ -236,14 +326,14 @@ function ApproverDashboard() {
           </Box>
         </Stack>
 
-        {/* Search Bar */}
+        {/* Approver Search Bar */}
         <Stack direction="row" spacing={2} alignItems="stretch">
           <TextField
             fullWidth
             placeholder="Enter approver name or ID (e.g. hr, admin, it team)"
             value={approverInput}
             onChange={(e) => setApproverInput(e.target.value)}
-            onKeyDown={handleKeyPress}
+            onKeyDown={handleApproverKeyPress}
             size="small"
             InputProps={{
               startAdornment: (
@@ -260,7 +350,7 @@ function ApproverDashboard() {
           />
           <Button
             variant="contained"
-            onClick={handleSearch}
+            onClick={handleApproverSearch}
             disabled={!approverInput.trim() || isLoading}
             startIcon={isLoading ? <CircularProgress size={16} /> : <Search />}
             sx={{ minWidth: 140 }}
@@ -304,15 +394,15 @@ function ApproverDashboard() {
         </Alert>
       )}
 
-      {/* Loading state */}
-      {activeApprover && isLoading && (
+      {/* Loading state (first load only) */}
+      {activeApprover && isLoading && !taskResponse && (
         <Box sx={{ py: 6 }}>
           <Loader size="medium" text={`Loading tasks for "${activeApprover}"...`} />
         </Box>
       )}
 
       {/* Results */}
-      {activeApprover && !isLoading && !error && (
+      {activeApprover && taskResponse && (
         <Fade in>
           <Box>
             {/* Stats Cards */}
@@ -322,13 +412,28 @@ function ApproverDashboard() {
                   <Stack direction="row" justifyContent="space-between" alignItems="center">
                     <Box>
                       <Typography variant="body2" color="text.secondary">
-                        Total Tasks
+                        Results
                       </Typography>
                       <Typography variant="h4" fontWeight={700}>
-                        {taskCounts.all}
+                        {totalElements}
                       </Typography>
                     </Box>
                     <Assignment sx={{ fontSize: 36, color: 'text.disabled' }} />
+                  </Stack>
+                </CardContent>
+              </Card>
+              <Card sx={{ flex: 1, borderLeft: 3, borderColor: 'primary.main' }}>
+                <CardContent sx={{ py: 2, '&:last-child': { pb: 2 } }}>
+                  <Stack direction="row" justifyContent="space-between" alignItems="center">
+                    <Box>
+                      <Typography variant="body2" color="text.secondary">
+                        Page
+                      </Typography>
+                      <Typography variant="h4" fontWeight={700} color="primary.main">
+                        {totalPages > 0 ? `${page + 1} / ${totalPages}` : '0'}
+                      </Typography>
+                    </Box>
+                    <Description sx={{ fontSize: 36, color: 'primary.light' }} />
                   </Stack>
                 </CardContent>
               </Card>
@@ -337,43 +442,13 @@ function ApproverDashboard() {
                   <Stack direction="row" justifyContent="space-between" alignItems="center">
                     <Box>
                       <Typography variant="body2" color="text.secondary">
-                        Pending
+                        Showing
                       </Typography>
                       <Typography variant="h4" fontWeight={700} color="warning.main">
-                        {taskCounts.pending}
+                        {tasks.length}
                       </Typography>
                     </Box>
-                    <AccessTime sx={{ fontSize: 36, color: 'warning.light' }} />
-                  </Stack>
-                </CardContent>
-              </Card>
-              <Card sx={{ flex: 1, borderLeft: 3, borderColor: 'success.main' }}>
-                <CardContent sx={{ py: 2, '&:last-child': { pb: 2 } }}>
-                  <Stack direction="row" justifyContent="space-between" alignItems="center">
-                    <Box>
-                      <Typography variant="body2" color="text.secondary">
-                        Approved
-                      </Typography>
-                      <Typography variant="h4" fontWeight={700} color="success.main">
-                        {taskCounts.approved}
-                      </Typography>
-                    </Box>
-                    <CheckCircle sx={{ fontSize: 36, color: 'success.light' }} />
-                  </Stack>
-                </CardContent>
-              </Card>
-              <Card sx={{ flex: 1, borderLeft: 3, borderColor: 'error.main' }}>
-                <CardContent sx={{ py: 2, '&:last-child': { pb: 2 } }}>
-                  <Stack direction="row" justifyContent="space-between" alignItems="center">
-                    <Box>
-                      <Typography variant="body2" color="text.secondary">
-                        Rejected
-                      </Typography>
-                      <Typography variant="h4" fontWeight={700} color="error.main">
-                        {taskCounts.rejected}
-                      </Typography>
-                    </Box>
-                    <Cancel sx={{ fontSize: 36, color: 'error.light' }} />
+                    <FilterList sx={{ fontSize: 36, color: 'warning.light' }} />
                   </Stack>
                 </CardContent>
               </Card>
@@ -381,57 +456,198 @@ function ApproverDashboard() {
 
             {/* Task Table */}
             <Paper>
-              <Box sx={{ px: 2, pt: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              {/* Table Header Row */}
+              <Box
+                sx={{
+                  px: 2,
+                  pt: 2,
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}
+              >
                 <Stack direction="row" alignItems="center" spacing={1}>
                   <Person fontSize="small" color="primary" />
                   <Typography variant="subtitle1" fontWeight={600}>
-                    Tasks for: <Chip label={activeApprover} size="small" color="primary" variant="outlined" />
+                    Tasks for:{' '}
+                    <Chip label={activeApprover} size="small" color="primary" variant="outlined" />
                   </Typography>
                 </Stack>
-                <Tooltip title="Refresh tasks">
-                  <IconButton size="small" onClick={() => refetch()} disabled={isLoading}>
-                    <Refresh fontSize="small" />
-                  </IconButton>
-                </Tooltip>
+                <Stack direction="row" spacing={1}>
+                  <Tooltip title={showFilters ? 'Hide Filters' : 'Show Filters'}>
+                    <IconButton
+                      size="small"
+                      onClick={() => setShowFilters(!showFilters)}
+                      color={hasActiveFilters ? 'primary' : 'default'}
+                    >
+                      <FilterList fontSize="small" />
+                      {hasActiveFilters && (
+                        <Box
+                          sx={{
+                            position: 'absolute',
+                            top: 4,
+                            right: 4,
+                            width: 8,
+                            height: 8,
+                            borderRadius: '50%',
+                            bgcolor: 'primary.main',
+                          }}
+                        />
+                      )}
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Refresh tasks">
+                    <IconButton size="small" onClick={() => refetch()} disabled={isLoading}>
+                      {isLoading ? <CircularProgress size={16} /> : <Refresh fontSize="small" />}
+                    </IconButton>
+                  </Tooltip>
+                </Stack>
               </Box>
+
+              {/* Collapsible Filter Panel */}
+              <Collapse in={showFilters}>
+                <Box sx={{ px: 2, pt: 2, pb: 1 }}>
+                  <Stack spacing={2}>
+                    {/* Search text */}
+                    <Stack direction="row" spacing={2} alignItems="center">
+                      <TextField
+                        size="small"
+                        placeholder="Search by step name, workflow name..."
+                        value={searchText}
+                        onChange={(e) => setSearchText(e.target.value)}
+                        onKeyDown={handleSearchKeyPress}
+                        fullWidth
+                        InputProps={{
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <Search fontSize="small" color="action" />
+                            </InputAdornment>
+                          ),
+                        }}
+                      />
+                    </Stack>
+
+                    {/* Date range */}
+                    <Stack direction="row" spacing={2} alignItems="center">
+                      <TextField
+                        size="small"
+                        type="datetime-local"
+                        label="Start Date & Time"
+                        value={startDate}
+                        onChange={(e) => setStartDate(e.target.value)}
+                        InputLabelProps={{ shrink: true }}
+                        sx={{ minWidth: 200 }}
+                      />
+                      <TextField
+                        size="small"
+                        type="datetime-local"
+                        label="End Date & Time"
+                        value={endDate}
+                        onChange={(e) => setEndDate(e.target.value)}
+                        InputLabelProps={{ shrink: true }}
+                        sx={{ minWidth: 200 }}
+                      />
+                      <TextField
+                        select
+                        size="small"
+                        label="Date Field"
+                        value={timeCheckIn}
+                        onChange={(e) => setTimeCheckIn(e.target.value)}
+                        SelectProps={{ native: true }}
+                        sx={{ minWidth: 140 }}
+                      >
+                        <option value="createdAt">Created At</option>
+                        <option value="dueAt">Due At</option>
+                      </TextField>
+                    </Stack>
+
+                    {/* Apply / Clear buttons */}
+                    <Stack direction="row" spacing={1} justifyContent="flex-end" alignItems="center">
+                      {hasPendingFilterChanges && (
+                        <Typography variant="caption" color="warning.main" sx={{ mr: 1 }}>
+                          Filters changed — click Apply
+                        </Typography>
+                      )}
+                      <Button
+                        variant="contained"
+                        size="small"
+                        onClick={handleApplyFilters}
+                        startIcon={<Search fontSize="small" />}
+                        color={hasPendingFilterChanges ? 'warning' : 'primary'}
+                      >
+                        Apply Filters
+                      </Button>
+                      {hasActiveFilters && (
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          color="error"
+                          onClick={handleClearFilters}
+                          startIcon={<Close fontSize="small" />}
+                        >
+                          Clear
+                        </Button>
+                      )}
+                    </Stack>
+                  </Stack>
+                  <Divider sx={{ mt: 2 }} />
+                </Box>
+              </Collapse>
+
+              {/* Tabs (sends status to API) */}
               <Tabs
                 value={tabValue}
-                onChange={(_, v) => setTabValue(v)}
+                onChange={handleTabChange}
                 sx={{ px: 2 }}
                 indicatorColor="primary"
               >
+                <Tab label={<Box sx={{ pr: 1 }}>All</Box>} />
                 <Tab
                   label={
-                    <Badge badgeContent={taskCounts.all} color="primary" max={99}>
-                      <Box sx={{ pr: 2 }}>All</Box>
-                    </Badge>
+                    <Stack direction="row" alignItems="center" spacing={0.5}>
+                      <AccessTime fontSize="small" color="warning" />
+                      <span>Pending</span>
+                    </Stack>
                   }
                 />
                 <Tab
                   label={
-                    <Badge badgeContent={taskCounts.pending} color="warning" max={99}>
-                      <Box sx={{ pr: 2 }}>Pending</Box>
-                    </Badge>
+                    <Stack direction="row" alignItems="center" spacing={0.5}>
+                      <CheckCircle fontSize="small" color="success" />
+                      <span>Approved</span>
+                    </Stack>
                   }
                 />
                 <Tab
                   label={
-                    <Badge badgeContent={taskCounts.approved} color="success" max={99}>
-                      <Box sx={{ pr: 2 }}>Approved</Box>
-                    </Badge>
-                  }
-                />
-                <Tab
-                  label={
-                    <Badge badgeContent={taskCounts.rejected} color="error" max={99}>
-                      <Box sx={{ pr: 2 }}>Rejected</Box>
-                    </Badge>
+                    <Stack direction="row" alignItems="center" spacing={0.5}>
+                      <Cancel fontSize="small" color="error" />
+                      <span>Rejected</span>
+                    </Stack>
                   }
                 />
               </Tabs>
               <Divider />
 
-              {filteredTasks.length === 0 ? (
+              {/* Loading overlay for page changes */}
+              {isLoading && taskResponse && (
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    py: 1,
+                    bgcolor: 'action.hover',
+                  }}
+                >
+                  <CircularProgress size={16} sx={{ mr: 1 }} />
+                  <Typography variant="caption" color="text.secondary">
+                    Loading...
+                  </Typography>
+                </Box>
+              )}
+
+              {tasks.length === 0 && !isLoading ? (
                 <Box sx={{ py: 6, textAlign: 'center' }}>
                   <Typography variant="body1" color="text.secondary">
                     {tabValue === 0
@@ -440,138 +656,214 @@ function ApproverDashboard() {
                   </Typography>
                 </Box>
               ) : (
-                <TableContainer>
-                  <Table>
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Step Name</TableCell>
-                        <TableCell>Work Item</TableCell>
-                        <TableCell>Status</TableCell>
-                        <TableCell>Due Date</TableCell>
-                        <TableCell>Acted At</TableCell>
-                        <TableCell align="right">Actions</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {filteredTasks.map((task) => {
-                        const overdue = isOverdue(task.dueAt, task.status)
-                        return (
-                          <TableRow
-                            key={task.taskId}
-                            hover
-                            sx={{
-                              bgcolor: overdue ? 'error.main' : 'inherit',
-                              '&:hover': {
-                                bgcolor: overdue ? 'error.dark' : undefined,
-                              },
-                              ...(overdue && { '& .MuiTableCell-root': { color: 'white' } }),
-                            }}
-                          >
-                            <TableCell>
-                              <Stack direction="row" alignItems="center" spacing={1}>
-                                <Typography variant="body2" fontWeight={500}>
-                                  {task.stepName || task.stepInstanceId || '—'}
-                                </Typography>
-                                {task.stepOrder && (
+                <>
+                  <TableContainer>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Step</TableCell>
+                          <TableCell>Workflow</TableCell>
+                          <TableCell>Work Item</TableCell>
+                          <TableCell>Status</TableCell>
+                          <TableCell>Created</TableCell>
+                          <TableCell>Due Date</TableCell>
+                          <TableCell>Acted At</TableCell>
+                          <TableCell align="right">Actions</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {tasks.map((task) => {
+                          const overdue = isOverdue(task.dueAt, task.status)
+                          const stepName = task.stepInstance?.stepName || task.stepName || '—'
+                          const stepOrder = task.stepInstance?.stepOrder || task.stepOrder
+                          const wfName = task.workflowInstance?.workflowName || '—'
+                          const wfStatus = task.workflowInstance?.workflowStatus
+                          const wiId = task.workItem?.workItemId || task.workItemId
+                          const wiStatus = task.workItem?.workItemStatus
+                          const wiType = task.workItem?.type
+
+                          return (
+                            <TableRow
+                              key={task.taskId}
+                              hover
+                              sx={{
+                                bgcolor: overdue ? 'error.50' : 'inherit',
+                                borderLeft: overdue ? '3px solid' : 'none',
+                                borderLeftColor: overdue ? 'error.main' : 'transparent',
+                              }}
+                            >
+                              {/* Step */}
+                              <TableCell>
+                                <Stack spacing={0.25}>
+                                  <Typography variant="body2" fontWeight={600}>
+                                    {stepName}
+                                  </Typography>
+                                  {stepOrder && (
+                                    <Typography variant="caption" color="text.secondary">
+                                      Order {stepOrder}
+                                    </Typography>
+                                  )}
+                                </Stack>
+                              </TableCell>
+
+                              {/* Workflow */}
+                              <TableCell>
+                                <Stack spacing={0.25}>
+                                  <Typography variant="body2" fontWeight={500}>
+                                    {wfName}
+                                  </Typography>
+                                  {wfStatus && (
+                                    <Chip
+                                      label={wfStatus}
+                                      size="small"
+                                      color={getStatusColor(wfStatus)}
+                                      variant="outlined"
+                                      sx={{ fontSize: '0.65rem', height: 20, width: 'fit-content' }}
+                                    />
+                                  )}
+                                </Stack>
+                              </TableCell>
+
+                              {/* Work Item */}
+                              <TableCell>
+                                <Stack spacing={0.25}>
+                                  {wiId && (
+                                    <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>
+                                      {wiId.substring(0, 8)}...
+                                    </Typography>
+                                  )}
+                                  <Stack direction="row" spacing={0.5}>
+                                    {wiType && (
+                                      <Chip
+                                        label={wiType}
+                                        size="small"
+                                        variant="outlined"
+                                        sx={{ fontSize: '0.6rem', height: 18 }}
+                                      />
+                                    )}
+                                    {wiStatus && (
+                                      <Chip
+                                        label={wiStatus}
+                                        size="small"
+                                        color={getStatusColor(wiStatus)}
+                                        variant="outlined"
+                                        sx={{ fontSize: '0.6rem', height: 18 }}
+                                      />
+                                    )}
+                                  </Stack>
+                                </Stack>
+                              </TableCell>
+
+                              {/* Task Status */}
+                              <TableCell>
+                                <Chip
+                                  icon={getStatusIcon(task.status)}
+                                  label={task.status || 'Unknown'}
+                                  color={getStatusColor(task.status)}
+                                  size="small"
+                                  variant="filled"
+                                />
+                                {overdue && (
                                   <Chip
-                                    label={`Order ${task.stepOrder}`}
+                                    label="OVERDUE"
+                                    color="error"
                                     size="small"
                                     variant="outlined"
-                                    sx={{ fontSize: '0.65rem', height: 20 }}
+                                    sx={{ ml: 0.5, fontSize: '0.6rem', height: 18 }}
                                   />
                                 )}
-                              </Stack>
-                            </TableCell>
-                            <TableCell>
-                              <Typography variant="body2" color="text.secondary">
-                                {task.workItemId
-                                  ? `${task.workItemId.substring(0, 8)}...`
-                                  : task.workflowName || '—'}
-                              </Typography>
-                            </TableCell>
-                            <TableCell>
-                              <Chip
-                                icon={getStatusIcon(task.status)}
-                                label={task.status || 'Unknown'}
-                                color={getStatusColor(task.status)}
-                                size="small"
-                                variant="filled"
-                              />
-                              {overdue && (
-                                <Chip
-                                  label="OVERDUE"
-                                  color="error"
-                                  size="small"
-                                  sx={{ ml: 1, fontSize: '0.6rem', height: 18, bgcolor: overdue ? 'white' : undefined, color: overdue ? 'error.main' : undefined }}
-                                />
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              <Typography variant="body2" sx={{ color: overdue ? 'inherit' : 'text.secondary' }}>
-                                {formatDate(task.dueAt)}
-                              </Typography>
-                            </TableCell>
-                            <TableCell>
-                              <Typography variant="body2" color="text.secondary">
-                                {formatDate(task.actedAt)}
-                              </Typography>
-                            </TableCell>
-                            <TableCell align="right">
-                              <Stack direction="row" spacing={1} justifyContent="flex-end">
-                                {task.status?.toUpperCase() === 'PENDING' && (
-                                  <>
-                                    <Tooltip title="Approve">
-                                      <IconButton
-                                        size="small"
-                                        color="success"
-                                        onClick={() => handleOpenAction(task, 'approve')}
-                                        disabled={isActionPending}
-                                      >
-                                        <ThumbUp fontSize="small" />
-                                      </IconButton>
-                                    </Tooltip>
-                                    <Tooltip title="Reject">
-                                      <IconButton
-                                        size="small"
-                                        color="error"
-                                        onClick={() => handleOpenAction(task, 'reject')}
-                                        disabled={isActionPending}
-                                      >
-                                        <ThumbDown fontSize="small" />
-                                      </IconButton>
-                                    </Tooltip>
-                                  </>
-                                )}
-                                <Tooltip title="View Details">
-                                  <IconButton
-                                    size="small"
-                                    color="primary"
-                                    onClick={() => handleViewTask(task)}
-                                  >
-                                    <Visibility fontSize="small" />
-                                  </IconButton>
-                                </Tooltip>
-                              </Stack>
-                            </TableCell>
-                          </TableRow>
-                        )
-                      })}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
+                              </TableCell>
+
+                              {/* Created */}
+                              <TableCell>
+                                <Typography variant="caption" color="text.secondary">
+                                  {formatDate(task.createdAt)}
+                                </Typography>
+                              </TableCell>
+
+                              {/* Due Date */}
+                              <TableCell>
+                                <Typography
+                                  variant="caption"
+                                  sx={{ color: overdue ? 'error.main' : 'text.secondary', fontWeight: overdue ? 600 : 400 }}
+                                >
+                                  {formatDate(task.dueAt)}
+                                </Typography>
+                              </TableCell>
+
+                              {/* Acted At */}
+                              <TableCell>
+                                <Typography variant="caption" color="text.secondary">
+                                  {formatDate(task.actedAt)}
+                                </Typography>
+                              </TableCell>
+
+                              {/* Actions */}
+                              <TableCell align="right">
+                                <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                                  {task.status?.toUpperCase() === 'PENDING' && (
+                                    <>
+                                      <Tooltip title="Approve">
+                                        <IconButton
+                                          size="small"
+                                          color="success"
+                                          onClick={() => handleOpenAction(task, 'approve')}
+                                          disabled={isActionPending}
+                                        >
+                                          <ThumbUp fontSize="small" />
+                                        </IconButton>
+                                      </Tooltip>
+                                      <Tooltip title="Reject">
+                                        <IconButton
+                                          size="small"
+                                          color="error"
+                                          onClick={() => handleOpenAction(task, 'reject')}
+                                          disabled={isActionPending}
+                                        >
+                                          <ThumbDown fontSize="small" />
+                                        </IconButton>
+                                      </Tooltip>
+                                    </>
+                                  )}
+                                  <Tooltip title="View Details">
+                                    <IconButton
+                                      size="small"
+                                      color="primary"
+                                      onClick={() => handleViewTask(task)}
+                                    >
+                                      <Visibility fontSize="small" />
+                                    </IconButton>
+                                  </Tooltip>
+                                </Stack>
+                              </TableCell>
+                            </TableRow>
+                          )
+                        })}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+
+                  {/* Pagination */}
+                  <TablePagination
+                    component="div"
+                    count={totalElements}
+                    page={page}
+                    onPageChange={handleChangePage}
+                    rowsPerPage={rowsPerPage}
+                    onRowsPerPageChange={handleChangeRowsPerPage}
+                    rowsPerPageOptions={[5, 10, 25, 50]}
+                    showFirstButton
+                    showLastButton
+                  />
+                </>
               )}
             </Paper>
           </Box>
         </Fade>
       )}
 
-      {/* Approve / Reject Action Dialog */}
-      <Dialog
-        open={actionDialogOpen}
-        onClose={handleCloseAction}
-        maxWidth="sm"
-        fullWidth
-      >
+      {/* ─── Approve / Reject Action Dialog ─── */}
+      <Dialog open={actionDialogOpen} onClose={handleCloseAction} maxWidth="sm" fullWidth>
         <DialogTitle
           sx={{
             bgcolor: actionType === 'approve' ? 'success.main' : 'error.main',
@@ -582,11 +874,7 @@ function ApproverDashboard() {
           }}
         >
           <Stack direction="row" alignItems="center" spacing={1}>
-            {actionType === 'approve' ? (
-              <ThumbUp fontSize="small" />
-            ) : (
-              <ThumbDown fontSize="small" />
-            )}
+            {actionType === 'approve' ? <ThumbUp fontSize="small" /> : <ThumbDown fontSize="small" />}
             <span>{actionType === 'approve' ? 'Approve Task' : 'Reject Task'}</span>
           </Stack>
           <IconButton size="small" onClick={handleCloseAction} sx={{ color: 'white' }}>
@@ -602,7 +890,15 @@ function ApproverDashboard() {
                     Step Name
                   </Typography>
                   <Typography variant="body1" fontWeight={500}>
-                    {selectedTask.stepName || '—'}
+                    {selectedTask.stepInstance?.stepName || selectedTask.stepName || '—'}
+                  </Typography>
+                </Box>
+                <Box>
+                  <Typography variant="caption" color="text.secondary">
+                    Workflow
+                  </Typography>
+                  <Typography variant="body1">
+                    {selectedTask.workflowInstance?.workflowName || '—'}
                   </Typography>
                 </Box>
                 <Box>
@@ -674,11 +970,11 @@ function ApproverDashboard() {
         </DialogActions>
       </Dialog>
 
-      {/* Task Detail Dialog */}
+      {/* ─── Task Detail Dialog ─── */}
       <Dialog
         open={!!selectedTask && !actionDialogOpen}
         onClose={() => setSelectedTask(null)}
-        maxWidth="sm"
+        maxWidth="md"
         fullWidth
       >
         <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -691,115 +987,260 @@ function ApproverDashboard() {
         </DialogTitle>
         <DialogContent>
           {selectedTask && (
-            <Stack spacing={2} sx={{ mt: 1 }}>
+            <Stack spacing={3} sx={{ mt: 1 }}>
+              {/* Task Info */}
               <Box>
-                <Typography variant="caption" color="text.secondary">
-                  Task ID
+                <Typography variant="subtitle2" color="primary" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  <Assignment fontSize="small" /> Task Information
                 </Typography>
-                <Typography variant="body2" sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
-                  {selectedTask.taskId}
-                </Typography>
+                <Stack spacing={1.5} sx={{ pl: 1 }}>
+                  <Box>
+                    <Typography variant="caption" color="text.secondary">Task ID</Typography>
+                    <Typography variant="body2" sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                      {selectedTask.taskId}
+                    </Typography>
+                  </Box>
+                  <Stack direction="row" spacing={4}>
+                    <Box>
+                      <Typography variant="caption" color="text.secondary">Status</Typography>
+                      <Box sx={{ mt: 0.5 }}>
+                        <Chip
+                          icon={getStatusIcon(selectedTask.status)}
+                          label={selectedTask.status || 'Unknown'}
+                          color={getStatusColor(selectedTask.status)}
+                          size="small"
+                        />
+                      </Box>
+                    </Box>
+                    <Box>
+                      <Typography variant="caption" color="text.secondary">Approver</Typography>
+                      <Typography variant="body2">{selectedTask.approverId || activeApprover || '—'}</Typography>
+                    </Box>
+                    {selectedTask.approverType && (
+                      <Box>
+                        <Typography variant="caption" color="text.secondary">Approver Type</Typography>
+                        <Typography variant="body2">{selectedTask.approverType}</Typography>
+                      </Box>
+                    )}
+                    {selectedTask.createdBy && (
+                      <Box>
+                        <Typography variant="caption" color="text.secondary">Created By</Typography>
+                        <Typography variant="body2">{selectedTask.createdBy}</Typography>
+                      </Box>
+                    )}
+                  </Stack>
+                  <Stack direction="row" spacing={4}>
+                    <Box>
+                      <Typography variant="caption" color="text.secondary">Created</Typography>
+                      <Typography variant="body2">{formatDate(selectedTask.createdAt)}</Typography>
+                    </Box>
+                    <Box>
+                      <Typography variant="caption" color="text.secondary">Due Date</Typography>
+                      <Typography
+                        variant="body2"
+                        color={isOverdue(selectedTask.dueAt, selectedTask.status) ? 'error.main' : 'text.primary'}
+                      >
+                        {formatDate(selectedTask.dueAt)}
+                        {isOverdue(selectedTask.dueAt, selectedTask.status) && ' (OVERDUE)'}
+                      </Typography>
+                    </Box>
+                    {selectedTask.actedAt && (
+                      <Box>
+                        <Typography variant="caption" color="text.secondary">Acted At</Typography>
+                        <Typography variant="body2">{formatDate(selectedTask.actedAt)}</Typography>
+                      </Box>
+                    )}
+                  </Stack>
+                </Stack>
               </Box>
-              {selectedTask.stepInstanceId && (
+
+              <Divider />
+
+              {/* Step Instance Info */}
+              {selectedTask.stepInstance && (
                 <Box>
-                  <Typography variant="caption" color="text.secondary">
-                    Step Instance ID
+                  <Typography variant="subtitle2" color="primary" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <AccountTree fontSize="small" /> Step Information
                   </Typography>
-                  <Typography variant="body2" sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
-                    {selectedTask.stepInstanceId}
-                  </Typography>
+                  <Stack spacing={1} sx={{ pl: 1 }}>
+                    <Stack direction="row" spacing={4}>
+                      <Box>
+                        <Typography variant="caption" color="text.secondary">Step Name</Typography>
+                        <Typography variant="body1" fontWeight={500}>
+                          {selectedTask.stepInstance.stepName}
+                        </Typography>
+                      </Box>
+                      {selectedTask.stepInstance.stepOrder && (
+                        <Box>
+                          <Typography variant="caption" color="text.secondary">Step Order</Typography>
+                          <Typography variant="body1">{selectedTask.stepInstance.stepOrder}</Typography>
+                        </Box>
+                      )}
+                    </Stack>
+                    <Box>
+                      <Typography variant="caption" color="text.secondary">Step Instance ID</Typography>
+                      <Typography variant="body2" sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                        {selectedTask.stepInstance.stepInstanceId}
+                      </Typography>
+                    </Box>
+                  </Stack>
                 </Box>
               )}
-              <Box>
-                <Typography variant="caption" color="text.secondary">
-                  Step Name
-                </Typography>
-                <Typography variant="body1" fontWeight={500}>
-                  {selectedTask.stepName || '—'}
-                </Typography>
-              </Box>
-              {selectedTask.stepOrder && (
-                <Box>
-                  <Typography variant="caption" color="text.secondary">
-                    Step Order
-                  </Typography>
-                  <Typography variant="body1">
-                    {selectedTask.stepOrder}
-                  </Typography>
-                </Box>
+
+              {/* Workflow Instance Info */}
+              {selectedTask.workflowInstance && (
+                <>
+                  <Divider />
+                  <Box>
+                    <Typography variant="subtitle2" color="primary" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      <AccountTree fontSize="small" /> Workflow Information
+                    </Typography>
+                    <Stack spacing={1} sx={{ pl: 1 }}>
+                      <Stack direction="row" spacing={4}>
+                        <Box>
+                          <Typography variant="caption" color="text.secondary">Workflow Name</Typography>
+                          <Typography variant="body1" fontWeight={500}>
+                            {selectedTask.workflowInstance.workflowName}
+                          </Typography>
+                        </Box>
+                        {selectedTask.workflowInstance.workflowStatus && (
+                          <Box>
+                            <Typography variant="caption" color="text.secondary">Status</Typography>
+                            <Box sx={{ mt: 0.5 }}>
+                              <Chip
+                                label={selectedTask.workflowInstance.workflowStatus}
+                                size="small"
+                                color={getStatusColor(selectedTask.workflowInstance.workflowStatus)}
+                              />
+                            </Box>
+                          </Box>
+                        )}
+                      </Stack>
+                      <Box>
+                        <Typography variant="caption" color="text.secondary">Workflow Instance ID</Typography>
+                        <Typography variant="body2" sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                          {selectedTask.workflowInstance.workflowInstanceId}
+                        </Typography>
+                      </Box>
+                    </Stack>
+                  </Box>
+                </>
               )}
-              {selectedTask.workItemId && (
-                <Box>
-                  <Typography variant="caption" color="text.secondary">
-                    Work Item ID
-                  </Typography>
-                  <Typography variant="body2" sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
-                    {selectedTask.workItemId}
-                  </Typography>
-                </Box>
+
+              {/* Work Item Info */}
+              {selectedTask.workItem && (
+                <>
+                  <Divider />
+                  <Box>
+                    <Typography variant="subtitle2" color="primary" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      <WorkOutline fontSize="small" /> Work Item Information
+                    </Typography>
+                    <Stack spacing={1} sx={{ pl: 1 }}>
+                      <Stack direction="row" spacing={4}>
+                        {selectedTask.workItem.type && (
+                          <Box>
+                            <Typography variant="caption" color="text.secondary">Type</Typography>
+                            <Typography variant="body2">{selectedTask.workItem.type}</Typography>
+                          </Box>
+                        )}
+                        {selectedTask.workItem.workItemStatus && (
+                          <Box>
+                            <Typography variant="caption" color="text.secondary">Status</Typography>
+                            <Box sx={{ mt: 0.5 }}>
+                              <Chip
+                                label={selectedTask.workItem.workItemStatus}
+                                size="small"
+                                color={getStatusColor(selectedTask.workItem.workItemStatus)}
+                              />
+                            </Box>
+                          </Box>
+                        )}
+                        {selectedTask.workItem.currentVersion && (
+                          <Box>
+                            <Typography variant="caption" color="text.secondary">Version</Typography>
+                            <Typography variant="body2">v{selectedTask.workItem.currentVersion}</Typography>
+                          </Box>
+                        )}
+                      </Stack>
+                      <Box>
+                        <Typography variant="caption" color="text.secondary">Work Item ID</Typography>
+                        <Typography variant="body2" sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                          {selectedTask.workItem.workItemId}
+                        </Typography>
+                      </Box>
+                    </Stack>
+                  </Box>
+                </>
               )}
-              {selectedTask.workflowName && (
-                <Box>
-                  <Typography variant="caption" color="text.secondary">
-                    Workflow
-                  </Typography>
-                  <Typography variant="body1">
-                    {selectedTask.workflowName}
-                  </Typography>
-                </Box>
+
+              {/* Decisions */}
+              {selectedTask.decisions && selectedTask.decisions.length > 0 && (
+                <>
+                  <Divider />
+                  <Box>
+                    <Typography variant="subtitle2" color="primary" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      <CheckCircle fontSize="small" /> Decisions ({selectedTask.decisions.length})
+                    </Typography>
+                    <Stack spacing={1.5} sx={{ pl: 1 }}>
+                      {selectedTask.decisions.map((d, idx) => (
+                        <Paper key={d.decisionId || idx} variant="outlined" sx={{ p: 1.5 }}>
+                          <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 0.5 }}>
+                            <Chip
+                              label={d.decision}
+                              size="small"
+                              color={getStatusColor(d.decision)}
+                            />
+                            <Typography variant="caption" color="text.secondary">
+                              by <strong>{d.decidedBy}</strong> on {formatDate(d.decidedAt)}
+                            </Typography>
+                          </Stack>
+                          {d.comments && (
+                            <Typography variant="body2" sx={{ mt: 0.5, fontStyle: 'italic' }}>
+                              "{d.comments}"
+                            </Typography>
+                          )}
+                        </Paper>
+                      ))}
+                    </Stack>
+                  </Box>
+                </>
               )}
-              <Box>
-                <Typography variant="caption" color="text.secondary">
-                  Approver
-                </Typography>
-                <Typography variant="body1">
-                  {selectedTask.approverId || activeApprover || '—'}
-                </Typography>
-              </Box>
-              <Box>
-                <Typography variant="caption" color="text.secondary">
-                  Status
-                </Typography>
-                <Box sx={{ mt: 0.5 }}>
-                  <Chip
-                    icon={getStatusIcon(selectedTask.status)}
-                    label={selectedTask.status || 'Unknown'}
-                    color={getStatusColor(selectedTask.status)}
-                    size="small"
-                  />
-                </Box>
-              </Box>
-              <Box>
-                <Typography variant="caption" color="text.secondary">
-                  Due Date
-                </Typography>
-                <Typography
-                  variant="body2"
-                  color={isOverdue(selectedTask.dueAt, selectedTask.status) ? 'error.main' : 'text.primary'}
-                >
-                  {formatDate(selectedTask.dueAt)}
-                  {isOverdue(selectedTask.dueAt, selectedTask.status) && ' (OVERDUE)'}
-                </Typography>
-              </Box>
-              {selectedTask.actedAt && (
-                <Box>
-                  <Typography variant="caption" color="text.secondary">
-                    Acted At
-                  </Typography>
-                  <Typography variant="body2">
-                    {formatDate(selectedTask.actedAt)}
-                  </Typography>
-                </Box>
-              )}
-              {selectedTask.comment && (
-                <Box>
-                  <Typography variant="caption" color="text.secondary">
-                    Comment
-                  </Typography>
-                  <Typography variant="body2">
-                    {selectedTask.comment}
-                  </Typography>
-                </Box>
+
+              {/* Comments */}
+              {selectedTask.comments && selectedTask.comments.length > 0 && (
+                <>
+                  <Divider />
+                  <Box>
+                    <Typography variant="subtitle2" color="primary" gutterBottom>
+                      Comments ({selectedTask.comments.length})
+                    </Typography>
+                    <Stack spacing={1.5} sx={{ pl: 1 }}>
+                      {selectedTask.comments.map((c, idx) => {
+                        // Handle both string and object comment formats
+                        const commentText = typeof c === 'string' ? c : c.comment || c.text || ''
+                        const commentedBy = c.commentedBy || c.commented_by || c.user || 'Unknown'
+                        const commentedAt = c.commentedAt || c.commented_at || c.timestamp || c.createdAt
+                        
+                        return (
+                          <Paper key={c.commentId || idx} variant="outlined" sx={{ p: 1.5 }}>
+                            {commentText && (
+                              <Typography variant="body2" sx={{ mb: commentedBy || commentedAt ? 0.5 : 0 }}>
+                                {commentText}
+                              </Typography>
+                            )}
+                            {(commentedBy || commentedAt) && (
+                              <Typography variant="caption" color="text.secondary">
+                                {commentedBy && `by ${commentedBy}`}
+                                {commentedBy && commentedAt && ' '}
+                                {commentedAt && `on ${formatDate(commentedAt)}`}
+                              </Typography>
+                            )}
+                          </Paper>
+                        )
+                      })}
+                    </Stack>
+                  </Box>
+                </>
               )}
             </Stack>
           )}

@@ -24,9 +24,9 @@ import Modal from '../Modal/Modal'
 
 function WorkflowDesigner({ workflowId, onBack, onCreateWorkItem, onNavigateToWorkflow }) {
   const nodeTypes = useMemo(() => ({
-    startNode: StartNode,
-    stepNode: StepNode,
-    endNode: EndNode,
+  startNode: StartNode,
+  stepNode: StepNode,
+  endNode: EndNode,
   }), [])
   // Use React Query for data fetching
   const { data: workflow, isLoading, error } = useWorkflow(workflowId)
@@ -312,14 +312,17 @@ function WorkflowDesigner({ workflowId, onBack, onCreateWorkItem, onNavigateToWo
         onSave={handleSaveWorkflow}
         onBack={onBack}
         onAddStep={handleAddStep}
-        canAddStep={!!workflow?.id && !isInUse}
+        canAddStep={!!workflowId && !isInUse}
         isSaving={createWorkflowMutation.isPending || updateWorkflowMutation.isPending}
         onCreateWorkItem={onCreateWorkItem}
-        canCreateWorkItem={!!workflow?.id && workflow?.isActive}
+        canCreateWorkItem={!!workflowId && workflow?.isActive}
         isLocked={isInUse}
         onCreateNewVersion={handleCreateNewVersion}
         isCreatingVersion={isCreatingVersion}
       />
+
+      {/* Spacer for fixed header - matches Toolbar height */}
+      <Box sx={{ height: (theme) => theme.mixins.toolbar.minHeight || '64px' }} />
 
       {/* Warning banner when workflow is in use */}
       {isInUse && (

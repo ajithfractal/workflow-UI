@@ -26,6 +26,7 @@ export const useUpdateStep = () => {
   return useMutation({
     mutationFn: async ({ stepId, stepData, workflowId, userId = 'system' }) => {
       const backendStepData = mapStepToBackend(stepData)
+      // Always use the step update endpoint: /workflow-definitions/steps/{stepId}
       return await workflowApi.updateStep(stepId, backendStepData, userId)
     },
     onSuccess: (_, variables) => {
