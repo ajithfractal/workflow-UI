@@ -31,7 +31,8 @@ import { ArrowBack, Send, Close, PlayArrow } from '@mui/icons-material'
 import { useWorkItem, useWorkflowProgress, useSubmitWorkItem, useStartWorkflow } from '../../hooks/queries/useWorkItems'
 import { useWorkflow, useWorkflows } from '../../hooks/queries/useWorkflows'
 import { useModal } from '../../hooks/useModal'
-import { stepsToNodes, stepsToEdges } from '../../utils/workflowMapper'
+import { stagesToNodes, stagesToEdges, stepsToNodes, stepsToEdges, getAllStepsFromStages } from '../../utils/workflowMapper'
+import { getLayoutedElements, WORKFLOW_LAYOUT_CONFIG } from '../../utils/workflowLayout'
 import ReactFlow, {
   Background,
   Controls,
@@ -42,6 +43,7 @@ import ReactFlow, {
 import 'reactflow/dist/style.css'
 import StartNode from '../WorkflowDesigner/NodeTypes/StartNode'
 import StepNode from '../WorkflowDesigner/NodeTypes/StepNode'
+import StageNode from '../WorkflowDesigner/NodeTypes/StageNode'
 import EndNode from '../WorkflowDesigner/NodeTypes/EndNode'
 import Loader from '../Loader/Loader'
 import Modal from '../Modal/Modal'
@@ -50,6 +52,7 @@ function WorkItemViewer({ workItemId, onBack }) {
   const nodeTypes = useMemo(() => ({
     startNode: StartNode,
     stepNode: StepNode,
+    stageNode: StageNode,
     endNode: EndNode,
   }), [])
   const { data: workItem, isLoading: isLoadingWorkItem } = useWorkItem(workItemId)
@@ -87,77 +90,174 @@ function WorkItemViewer({ workItemId, onBack }) {
 
   const [nodes, setNodes, onNodesChange] = useNodesState([])
   const [edges, setEdges, onEdgesChange] = useEdgesState([])
+  const [visualPositions, setVisualPositions] = useState({})
+
+  // Load visual positions from localStorage (same as WorkflowDesigner)
+  useEffect(() => {
+    if (workflowId) {
+      try {
+        const saved = localStorage.getItem(`workflow-positions-${workflowId}`)
+        if (saved) {
+          const parsed = JSON.parse(saved)
+          setVisualPositions(parsed)
+        }
+      } catch (error) {
+        console.error('Failed to load visual positions from localStorage:', error)
+      }
+    } else {
+      setVisualPositions({})
+    }
+  }, [workflowId])
 
   // Build diagram from workflow definition, then overlay progress status
   useEffect(() => {
-    if (!workflow?.steps || workflow.steps.length === 0) {
-      setNodes([])
-      setEdges([])
+    if (!workflow?.stages || workflow.stages.length === 0) {
+      // Fallback: if no stages but has steps (legacy), use step-based visualization
+      const allSteps = getAllStepsFromStages(workflow)
+      if (!allSteps || allSteps.length === 0) {
+        setNodes([])
+        setEdges([])
+        return
+      }
+
+      // Build diagram from workflow definition (has approvers, approvalType, etc.)
+      const flowNodes = stepsToNodes(allSteps, workflow.name)
+      const flowEdges = stepsToEdges(allSteps)
+
+      // Apply layout engine
+      const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
+        flowNodes,
+        flowEdges,
+        WORKFLOW_LAYOUT_CONFIG
+      )
+
+      // Initialize default state and overlay progress
+      const updatedNodes = layoutedNodes.map((node) => {
+        const nodeData = {
+          ...node.data,
+          isCompleted: false,
+          isCurrent: false,
+          isFailed: false,
+          stepStatus: null,
+        }
+
+        // Overlay progress status for step nodes
+        if (node.type === 'stepNode' && progress?.steps) {
+          const stepId = node.data.step?.id
+          if (stepId) {
+            const stepInst = progress.steps.find((s) => s.stepId === stepId)
+            if (stepInst) {
+              nodeData.stepStatus = stepInst.status
+              if (stepInst.status === 'FAILED' || stepInst.status === 'REJECTED') {
+                nodeData.isFailed = true
+              } else if (stepInst.status === 'COMPLETED') {
+                nodeData.isCompleted = true
+              } else if (stepInst.status === 'IN_PROGRESS') {
+                nodeData.isCurrent = true
+              }
+            }
+          }
+        }
+
+        // Apply visual position if it exists
+        const finalPosition = visualPositions[node.id] || node.position
+
+        return {
+          ...node,
+          position: finalPosition,
+          data: nodeData,
+        }
+      })
+
+      setNodes(updatedNodes)
+      setEdges(layoutedEdges)
       return
     }
 
-    // Build diagram from workflow definition (has approvers, approvalType, etc.)
-    const flowNodes = stepsToNodes(workflow.steps, workflow.name)
-    const flowEdges = stepsToEdges(workflow.steps)
+    // Use stages-based visualization (same as WorkflowDesigner)
+    const flowNodes = stagesToNodes(workflow.stages, workflow.name)
+    const flowEdges = stagesToEdges(workflow.stages)
 
-    // Initialize default state
-    flowNodes.forEach((node) => {
-      node.data.isCompleted = false
-      node.data.isCurrent = false
-      node.data.isFailed = false
-      node.data.stepStatus = null
-    })
+    // Apply layout engine to compute positions
+    const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
+      flowNodes,
+      flowEdges,
+      WORKFLOW_LAYOUT_CONFIG
+    )
 
-    // Overlay progress status from the progress API
-    if (progress?.steps && Array.isArray(progress.steps) && progress.steps.length > 0) {
-      // Build a lookup map: stepId -> step instance from progress
-      const progressStepMap = new Map()
+    // Build progress lookup maps
+    const progressStepMap = new Map()
+    if (progress?.steps && Array.isArray(progress.steps)) {
       progress.steps.forEach((stepInst) => {
         progressStepMap.set(stepInst.stepId, stepInst)
       })
-
-      const currentStepId = progress.currentStep?.stepId
-
-      flowNodes.forEach((node) => {
-        if (node.type !== 'stepNode') return
-        const stepId = node.data.step?.id
-        if (!stepId) return
-
-        const stepInst = progressStepMap.get(stepId)
-        if (!stepInst) return
-
-        node.data.stepStatus = stepInst.status
-
-        if (stepInst.status === 'FAILED' || stepInst.status === 'REJECTED') {
-          node.data.isFailed = true
-          node.data.isCompleted = false
-          node.data.isCurrent = false
-        } else if (stepInst.status === 'COMPLETED') {
-          node.data.isCompleted = true
-          node.data.isCurrent = false
-          node.data.isFailed = false
-        } else if (stepInst.status === 'IN_PROGRESS') {
-          node.data.isCurrent = true
-          node.data.isCompleted = false
-          node.data.isFailed = false
-        } else {
-          // NOT_STARTED or others
-          node.data.isCompleted = false
-          node.data.isCurrent = false
-          node.data.isFailed = false
-        }
-      })
     }
 
-    // Create new references so React Flow re-renders
-    const updatedNodes = flowNodes.map((node) => ({
-      ...node,
-      data: { ...node.data },
-    }))
+    // Overlay progress status and apply visual positions
+    const updatedNodes = layoutedNodes.map((node) => {
+      const nodeData = { ...node.data }
+
+      // Initialize default state
+      if (node.type === 'stageNode') {
+        nodeData.isCompleted = false
+        nodeData.isCurrent = false
+        nodeData.isFailed = false
+
+        // Check if all steps in stage are completed
+        const stageSteps = node.data.steps || []
+        if (stageSteps.length > 0) {
+          const stepStatuses = stageSteps.map((step) => {
+            const stepInst = progressStepMap.get(step.id)
+            return stepInst?.status
+          })
+
+          const allCompleted = stepStatuses.every((status) => status === 'COMPLETED')
+          const anyFailed = stepStatuses.some((status) => status === 'FAILED' || status === 'REJECTED')
+          const anyInProgress = stepStatuses.some((status) => status === 'IN_PROGRESS')
+
+          if (anyFailed) {
+            nodeData.isFailed = true
+          } else if (allCompleted && stepStatuses.length > 0) {
+            nodeData.isCompleted = true
+          } else if (anyInProgress) {
+            nodeData.isCurrent = true
+          }
+        }
+      } else if (node.type === 'stepNode') {
+        nodeData.isCompleted = false
+        nodeData.isCurrent = false
+        nodeData.isFailed = false
+        nodeData.stepStatus = null
+
+        const stepId = node.data.step?.id
+        if (stepId) {
+          const stepInst = progressStepMap.get(stepId)
+          if (stepInst) {
+            nodeData.stepStatus = stepInst.status
+            if (stepInst.status === 'FAILED' || stepInst.status === 'REJECTED') {
+              nodeData.isFailed = true
+            } else if (stepInst.status === 'COMPLETED') {
+              nodeData.isCompleted = true
+            } else if (stepInst.status === 'IN_PROGRESS') {
+              nodeData.isCurrent = true
+            }
+          }
+        }
+      }
+
+      // Apply visual position if it exists (from WorkflowDesigner), otherwise use layout engine position
+      const finalPosition = visualPositions[node.id] || node.position
+
+      return {
+        ...node,
+        position: finalPosition,
+        data: nodeData,
+      }
+    })
 
     setNodes(updatedNodes)
-    setEdges(flowEdges)
-  }, [workflow, progress, setNodes, setEdges])
+    setEdges(layoutedEdges)
+  }, [workflow, progress, visualPositions, setNodes, setEdges])
 
   const handleSubmit = () => {
     if (workItem?.contentRef) {
@@ -649,10 +749,10 @@ function WorkItemViewer({ workItemId, onBack }) {
                   Error loading progress: {progressError.message || 'Failed to load workflow progress'}
                 </Alert>
               )}
-              <Box sx={{ height: 500, mt: 2 }}>
+              <Box sx={{ height: 500, mt: 2, width: '100%', position: 'relative' }}>
                 {isLoadingProgress || isLoadingWorkflow ? (
                   <Loader size="medium" text="Loading workflow diagram..." />
-                ) : !workflow?.steps || workflow.steps.length === 0 ? (
+                ) : !getAllStepsFromStages(workflow) || getAllStepsFromStages(workflow).length === 0 ? (
                   <Box sx={{ p: 4, textAlign: 'center' }}>
                     <Typography variant="body2" color="text.secondary">
                       {isLoadingProgress
@@ -668,17 +768,27 @@ function WorkItemViewer({ workItemId, onBack }) {
                   <ReactFlow
                     nodes={nodes}
                     edges={edges}
-                    onNodesChange={onNodesChange}
-                    onEdgesChange={onEdgesChange}
+                    onNodesChange={undefined}
+                    onEdgesChange={undefined}
                     nodeTypes={nodeTypes}
+                    nodesDraggable={false}
+                    nodesConnectable={false}
+                    elementsSelectable={false}
                     fitView
+                    fitViewOptions={{
+                      padding: 0.2,
+                      includeHiddenNodes: false,
+                      maxZoom: 2.0,
+                      minZoom: 0.1,
+                      duration: 400,
+                    }}
                     defaultEdgeOptions={{
                       type: 'smoothstep',
                       markerEnd: {
                         type: 'arrowclosed',
-                        color: '#3b82f6',
+                        color: '#64b5f6',
                       },
-                      style: { strokeWidth: 2, stroke: '#3b82f6' },
+                      style: { strokeWidth: 2, stroke: '#64b5f6' },
                     }}
                   >
                     <Background />
@@ -790,7 +900,8 @@ function WorkItemViewer({ workItemId, onBack }) {
                       <Typography variant="body1">{wf.name}</Typography>
                       <Chip label={`v${wf.version}`} size="small" sx={{ ml: 1, fontSize: '0.7rem', height: 20 }} />
                       <Typography variant="caption" color="text.secondary" sx={{ ml: 'auto' }}>
-                        {wf.steps?.length || 0} steps
+                        {wf.stages?.reduce((total, stage) => total + (stage.steps?.length || 0), 0) || 
+                         wf.steps?.length || 0} steps
                       </Typography>
                     </Stack>
                   </MenuItem>

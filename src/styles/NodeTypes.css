@@ -24,6 +24,14 @@
   text-align: center;
 }
 
+/* Unique CSS for step node rectangle - no dependency on .node class */
+.step-node-title {
+  font-weight: 600;
+  color: var(--node-text);
+  font-size: 0.875rem;
+}
+
+/* Keep old .step-node class for backward compatibility if needed elsewhere */
 .step-node {
   background: var(--node-bg) !important;
   border: 2px solid #3b82f6 !important;

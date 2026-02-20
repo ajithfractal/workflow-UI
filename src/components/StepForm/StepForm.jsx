@@ -22,6 +22,7 @@ import {
 import { Close, Add, Delete, Lock, Edit } from '@mui/icons-material'
 import { useWorkflow } from '../../hooks/queries/useWorkflows'
 import { useAddStep, useUpdateStep, useDeleteStep } from '../../hooks/queries/useSteps'
+import { getAllStepsFromStages } from '../../utils/workflowMapper'
 import { useAddApprovers, useRemoveApprover } from '../../hooks/queries/useApprovers'
 import { useStepRules, useCreateStepRule, useUpdateStepRule, useDeleteStepRule } from '../../hooks/queries/useRules'
 import useWorkflowStore from '../../hooks/useWorkflow'
@@ -39,7 +40,7 @@ const RULE_TYPES = [
   { value: 'CONDITIONAL_ROUTING', label: 'Conditional Routing' },
 ]
 
-function StepForm({ workflowId, step, onClose, isReadOnly = false }) {
+function StepForm({ workflowId, step, stageId, onClose, isReadOnly = false }) {
   // React Query hooks
   const { data: workflow } = useWorkflow(workflowId)
   const addStepMutation = useAddStep()
@@ -51,10 +52,26 @@ function StepForm({ workflowId, step, onClose, isReadOnly = false }) {
   const updateRuleMutation = useUpdateStepRule()
   const deleteRuleMutation = useDeleteStepRule()
   
+  // Helper function to find which stage contains a step
+  const findStageForStep = (stepId) => {
+    if (!workflow?.stages || !stepId) return null
+    for (const stage of workflow.stages) {
+      if (stage.steps?.some(s => s.id === stepId)) {
+        return stage.id
+      }
+    }
+    return null
+  }
+
   // Get the current step (from prop or from workflow data)
-  const currentStep = step || (workflow?.steps && step?.id ? workflow.steps.find((s) => s.id === step.id) : null)
+  const allSteps = getAllStepsFromStages(workflow)
+  const currentStep = step || (allSteps && step?.id ? allSteps.find((s) => s.id === step.id) : null)
   const stepDefinitionId = currentStep?.id || currentStep?.stepId || step?.id || step?.stepId
   const { data: rules = [], isLoading: isLoadingRules } = useStepRules(stepDefinitionId)
+  
+  // Determine stageId: from prop, or find from step, or use first stage
+  const resolvedStageId = stageId || (step?.id ? findStageForStep(step.id) : null) || 
+    (workflow?.stages && workflow.stages.length > 0 ? workflow.stages[0].id : null)
   
   // Modal hook
   const { modal, showAlert, showConfirm, closeModal } = useModal()
@@ -131,13 +148,14 @@ function StepForm({ workflowId, step, onClose, isReadOnly = false }) {
 
   // Sync approvers when workflow updates (React Query will handle refetching)
   useEffect(() => {
-    if (step?.id && workflow?.steps) {
-      const updatedStep = workflow.steps.find((s) => s.id === step.id)
+    if (step?.id && workflow) {
+      const allSteps = getAllStepsFromStages(workflow)
+      const updatedStep = allSteps.find((s) => s.id === step.id)
       if (updatedStep) {
         setApprovers(updatedStep.approvers || [])
       }
     }
-  }, [workflow?.steps, step?.id])
+  }, [workflow?.stages, workflow?.steps, step?.id])
 
   const isSaving = addStepMutation.isPending || updateStepMutation.isPending
   const isDeleting = deleteStepMutation.isPending
@@ -174,6 +192,10 @@ function StepForm({ workflowId, step, onClose, isReadOnly = false }) {
           showAlert('Workflow must be created first', 'warning', 'Warning')
           return
         }
+        if (!resolvedStageId) {
+          showAlert('Please create a stage first before adding steps', 'warning', 'Warning')
+          return
+        }
         // Include approvers from both saved approvers and pending approvers
         const allApprovers = [
           ...approvers,
@@ -184,6 +206,7 @@ function StepForm({ workflowId, step, onClose, isReadOnly = false }) {
         ]
         
         await addStepMutation.mutateAsync({
+          stageId: resolvedStageId,
           workflowId,
           stepData: {
             ...data,
@@ -279,8 +302,9 @@ function StepForm({ workflowId, step, onClose, isReadOnly = false }) {
       })
       
       // React Query will automatically update workflow data, so we can sync approvers
-      if (workflow?.steps) {
-        const updatedStep = workflow.steps.find((s) => s.id === step.id)
+      if (workflow) {
+        const allSteps = getAllStepsFromStages(workflow)
+        const updatedStep = allSteps.find((s) => s.id === step.id)
         if (updatedStep) {
           setApprovers(updatedStep.approvers || [])
         }
@@ -368,7 +392,8 @@ function StepForm({ workflowId, step, onClose, isReadOnly = false }) {
     }
 
     // Get the current step ID (try from workflow data first, then from prop)
-    const currentStep = workflow?.steps?.find((s) => s.id === step?.id) || step
+    const allSteps = getAllStepsFromStages(workflow)
+    const currentStep = allSteps?.find((s) => s.id === step?.id) || step
     const stepDefinitionId = currentStep?.id || currentStep?.stepId || step?.id || step?.stepId
     
     if (!stepDefinitionId) {
@@ -410,7 +435,8 @@ function StepForm({ workflowId, step, onClose, isReadOnly = false }) {
     }
 
     // Get the current step ID (try from workflow data first, then from prop)
-    const currentStep = workflow?.steps?.find((s) => s.id === step?.id) || step
+    const allSteps = getAllStepsFromStages(workflow)
+    const currentStep = allSteps?.find((s) => s.id === step?.id) || step
     const stepDefinitionId = currentStep?.id || currentStep?.stepId || step?.id || step?.stepId
     
     if (!stepDefinitionId) {
@@ -440,8 +466,10 @@ function StepForm({ workflowId, step, onClose, isReadOnly = false }) {
       'Are you sure you want to delete this rule?',
       async () => {
         try {
-          const currentStep = workflow?.steps?.find((s) => s.id === step?.id) || step
-          const stepDefinitionId = currentStep?.id || currentStep?.stepId || step?.id || step?.stepId
+          const allSteps = getAllStepsFromStages(workflow)
+          const currentStep = (allSteps && allSteps.length > 0) ? allSteps.find((s) => s.id === step?.id) : null
+          const finalStep = currentStep || step
+          const stepDefinitionId = finalStep?.id || finalStep?.stepId || step?.id || step?.stepId
           if (!stepDefinitionId) {
             showAlert('Step ID not found', 'error', 'Error')
             return

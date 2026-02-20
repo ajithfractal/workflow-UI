@@ -1,6 +1,7 @@
 import axios from 'axios'
 import {
   WORKFLOW_ENDPOINTS,
+  STAGE_ENDPOINTS,
   STEP_ENDPOINTS,
   APPROVER_ENDPOINTS,
   STEP_RULE_ENDPOINTS,
@@ -19,23 +20,76 @@ const api = axios.create({
   },
 })
 
+
+
 // Response interceptor — extract backend error message for all API calls
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Extract the actual message from the backend response
+    const status = error.response?.status
+
+    // Extract backend message safely
     const backendMessage =
       error.response?.data?.message ||
       error.response?.data?.error ||
-      (typeof error.response?.data === 'string' ? error.response.data : null)
+      (typeof error.response?.data === 'string'
+        ? error.response.data
+        : null)
 
     if (backendMessage) {
       error.message = backendMessage
     }
 
+    // ===== AUTH HANDLING =====
+    if (status === 401) {
+      console.warn('Session expired or unauthorized')
+
+      // Remove token
+      localStorage.removeItem('accessToken')
+
+      // Optional: prevent redirect loop if already on login page
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login'
+      }
+    }
+
+    // ===== FORBIDDEN ACCESS =====
+    if (status === 403) {
+      console.warn('Forbidden request')
+    }
+
+    // ===== SERVER ERROR LOGGING =====
+    if (status >= 500) {
+      console.error('Server error:', error.response)
+    }
+
     return Promise.reject(error)
   }
 )
+
+
+export const authApi = {
+  login: async (email, password) => {
+    const response = await api.post('/auth/login', {
+      email,
+      password,
+    })
+
+    const token = response.data?.token || response.data?.accessToken
+
+    if (token) {
+      localStorage.setItem('accessToken', token)
+    }
+
+    return response.data
+  },
+
+  logout: () => {
+    localStorage.removeItem('accessToken')
+  },
+
+  getToken: () => localStorage.getItem('accessToken'),
+}
 
 // Workflow CRUD operations
 export const workflowApi = {
@@ -61,10 +115,40 @@ export const workflowApi = {
     return response.data
   },
 
-  // Add step to workflow
-  addStep: async (workflowId, stepData, userId = 'system') => {
+  // ========== Stage APIs ==========
+
+  // Create stage
+  createStage: async (workflowId, stageData, userId = 'system') => {
     const response = await api.post(
-      STEP_ENDPOINTS.CREATE(workflowId),
+      STAGE_ENDPOINTS.CREATE(workflowId),
+      stageData,
+      { params: { [QUERY_PARAMS.CREATED_BY]: userId } }
+    )
+    return response.data
+  },
+
+  // Update stage
+  updateStage: async (stageId, stageData, userId = 'system') => {
+    const response = await api.put(
+      STAGE_ENDPOINTS.UPDATE(stageId),
+      stageData,
+      { params: { [QUERY_PARAMS.UPDATED_BY]: userId } }
+    )
+    return response.data
+  },
+
+  // Delete stage
+  deleteStage: async (stageId) => {
+    const response = await api.delete(STAGE_ENDPOINTS.DELETE(stageId))
+    return response.data
+  },
+
+  // ========== Step APIs ==========
+
+  // Add step to stage
+  addStep: async (stageId, stepData, userId = 'system') => {
+    const response = await api.post(
+      STEP_ENDPOINTS.CREATE(stageId),
       stepData,
       { params: { [QUERY_PARAMS.CREATED_BY]: userId } }
     )

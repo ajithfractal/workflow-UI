@@ -107,7 +107,10 @@ function WorkflowList({ onCreateWorkflow, onEditWorkflow, onViewWorkItems, onCre
                         size="small"
                       />
                     </TableCell>
-                    <TableCell>{workflow.steps?.length || 0}</TableCell>
+                    <TableCell>
+                      {workflow.stages?.reduce((total, stage) => total + (stage.steps?.length || 0), 0) || 
+                       workflow.steps?.length || 0}
+                    </TableCell>
                     <TableCell align="right">
                       <Stack direction="row" spacing={1} justifyContent="flex-end">
                         <IconButton

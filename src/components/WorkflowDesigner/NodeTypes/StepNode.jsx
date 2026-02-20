@@ -1,105 +1,105 @@
 import { Handle, Position } from 'reactflow'
-import { Box, Typography, Chip, Stack } from '@mui/material'
+import { Box, Typography, Stack, useTheme } from '@mui/material'
 import '../../../styles/NodeTypes.css'
 
 function StepNode({ data }) {
   const { step, order, isParallel, parallelGroupSize, isCompleted, isCurrent, isFailed } = data
+  const theme = useTheme()
+
+  // Get border color based on state or custom color
+  const getBorderColor = () => {
+    // Priority: state colors > custom colors > default
+    if (isFailed) return theme.palette.error.main
+    if (isCompleted) return theme.palette.success.main
+    if (isCurrent) return theme.palette.primary.main
+    // Use custom color if provided
+    if (data.customBorderColor) return data.customBorderColor
+    return theme.palette.primary.main
+  }
+
+  // Get background color based on state or custom color - theme aware
+  const getStepColor = () => {
+    // Priority: state colors > custom colors > default
+    if (isFailed) {
+      return theme.palette.mode === 'dark' ? '#7f1d1d' : '#fee2e2'
+    }
+    if (isCompleted) {
+      return theme.palette.mode === 'dark' ? '#064e3b' : '#d1fae5'
+    }
+    if (isCurrent) {
+      return theme.palette.mode === 'dark' ? '#1e3a5f' : '#dbeafe'
+    }
+    // Use custom color if provided
+    if (data.customBackgroundColor) return data.customBackgroundColor
+    return theme.palette.mode === 'dark' ? theme.palette.background.paper : '#ffffff'
+  }
 
   return (
     <Box
-      className={`node step-node ${isParallel ? 'parallel' : ''} ${isCompleted ? 'completed' : ''} ${isCurrent ? 'current' : ''} ${isFailed ? 'failed' : ''}`}
+      className={`step-node-polygon ${isParallel ? 'parallel' : ''} ${isCompleted ? 'completed' : ''} ${isCurrent ? 'current' : ''} ${isFailed ? 'failed' : ''}`}
       sx={{
+        position: 'relative',
         padding: 2,
         borderRadius: 2,
-        minWidth: 180,
+        minWidth: 140,
+        minHeight: 100,
         cursor: 'pointer',
+        border: 2,
+        borderColor: getBorderColor(),
+        bgcolor: getStepColor(),
+        boxShadow: 2,
+        '&:hover': {
+          boxShadow: 4,
+          transform: 'translateY(-2px)',
+        },
       }}
     >
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
-        <Typography variant="body2" className="node-title" sx={{ fontWeight: 600 }}>
+      <Stack 
+        direction="column" 
+        alignItems="center" 
+        justifyContent="center" 
+        sx={{ 
+          textAlign: 'center',
+          width: '100%',
+        }}
+      >
+        <Typography 
+          variant="body2" 
+          className="step-node-title" 
+          sx={{ 
+            fontWeight: 600, 
+            fontSize: '0.875rem',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            wordBreak: 'break-word',
+            lineHeight: 1.4,
+            maxWidth: '100%',
+            color: 'primary.main',
+            mb: step?.order ? 0.25 : 0,
+            fontFamily: 'inherit',
+          }}
+        >
           {step?.name || data.label}
         </Typography>
-        <Stack direction="row" spacing={0.5}>
-          {isParallel && (
-            <Chip
-              label={`⚡ ${parallelGroupSize}`}
-              size="small"
-              sx={{
-                bgcolor: '#f59e0b',
-                color: 'white',
-                fontSize: '0.75rem',
-                height: 20,
-              }}
-              title={`Parallel execution - ${parallelGroupSize} steps`}
-            />
-          )}
-          {isFailed && (
-            <Chip
-              label="✗"
-              size="small"
-              sx={{
-                bgcolor: '#ef4444',
-                color: 'white',
-                fontSize: '0.75rem',
-                height: 20,
-                fontWeight: 700,
-              }}
-              title="Step failed / rejected"
-            />
-          )}
-          {isCompleted && !isFailed && (
-            <Chip
-              label="✓"
-              size="small"
-              sx={{
-                bgcolor: '#10b981',
-                color: 'white',
-                fontSize: '0.75rem',
-                height: 20,
-              }}
-              title="Step completed"
-            />
-          )}
-          {isCurrent && !isCompleted && !isFailed && (
-            <Chip
-              label="→"
-              size="small"
-              sx={{
-                bgcolor: '#3b82f6',
-                color: 'white',
-                fontSize: '0.75rem',
-                height: 20,
-              }}
-              title="Current step"
-            />
-          )}
-        </Stack>
-      </Stack>
-      <Box className="node-content">
-        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
-          <Chip
-            label={step?.approvalType || 'ALL'}
-            size="small"
-            className="approval-type"
-            sx={{
-              fontSize: '0.7rem',
-              height: 18,
+        {step?.order && (
+          <Typography 
+            variant="caption" 
+            color="text.secondary"
+            sx={{ 
+              fontSize: '0.75rem', 
+              fontWeight: 500,
+              fontFamily: 'inherit',
             }}
-          />
-          {step?.approvers && (
-            <Typography variant="caption" className="approver-count">
-              {step.approvers.length} approvers
-            </Typography>
-          )}
-        </Stack>
-        {isParallel && (
-          <Typography variant="caption" sx={{ fontStyle: 'italic', display: 'block', mt: 0.5, color: 'var(--node-content)' }}>
-            Order {order} - Parallel
+          >
+            {step.order}
           </Typography>
         )}
-      </Box>
-      <Handle type="target" position={Position.Top} />
-      <Handle type="source" position={Position.Bottom} />
+      </Stack>
+      <Handle type="target" position={Position.Left} style={{ zIndex: 2 }} />
+      <Handle type="source" position={Position.Right} style={{ zIndex: 2 }} />
     </Box>
   )
 }

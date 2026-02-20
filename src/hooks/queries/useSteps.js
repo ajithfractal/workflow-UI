@@ -3,18 +3,20 @@ import workflowApi from '../../api/workflowApi'
 import { mapStepToBackend } from '../../utils/workflowMapper'
 import { workflowKeys } from './useWorkflows'
 
-// Add step mutation
+// Add step mutation (now requires stageId instead of workflowId)
 export const useAddStep = () => {
   const queryClient = useQueryClient()
   
   return useMutation({
-    mutationFn: async ({ workflowId, stepData, userId = 'system' }) => {
+    mutationFn: async ({ stageId, workflowId, stepData, userId = 'system' }) => {
       const backendStepData = mapStepToBackend(stepData)
-      return await workflowApi.addStep(workflowId, backendStepData, userId)
+      return await workflowApi.addStep(stageId, backendStepData, userId)
     },
     onSuccess: (_, variables) => {
       // Invalidate workflow to refetch with new step
-      queryClient.invalidateQueries({ queryKey: workflowKeys.detail(variables.workflowId) })
+      if (variables.workflowId) {
+        queryClient.invalidateQueries({ queryKey: workflowKeys.detail(variables.workflowId) })
+      }
     },
   })
 }

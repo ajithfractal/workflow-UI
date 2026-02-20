@@ -20,7 +20,9 @@ function Toolbar({
   onSave,
   onBack,
   onAddStep,
+  onAddStage,
   canAddStep,
+  canAddStage,
   isSaving,
   onCreateWorkItem,
   canCreateWorkItem,
@@ -97,14 +99,14 @@ function Toolbar({
             </Button>
           ) : (
             <>
-          {canAddStep && (
+          {canAddStage && (
             <Button
               variant="outlined"
               startIcon={<Add />}
-              onClick={onAddStep}
-              title="Add Step"
+              onClick={onAddStage}
+              title="Add Stage"
             >
-              Add Step
+              Add Stage
             </Button>
           )}
           <Button

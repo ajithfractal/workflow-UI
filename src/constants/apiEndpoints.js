@@ -20,9 +20,16 @@ export const WORKFLOW_ENDPOINTS = {
   DEACTIVATE: (id) => `${API_BASE}/workflow-definitions/${id}/deactivate`,
 }
 
+// Workflow Stage endpoints
+export const STAGE_ENDPOINTS = {
+  CREATE: (workflowId) => `${API_BASE}/workflow-definitions/${workflowId}/stages`,
+  UPDATE: (stageId) => `${API_BASE}/workflow-definitions/stages/${stageId}`,
+  DELETE: (stageId) => `${API_BASE}/workflow-definitions/stages/${stageId}`,
+}
+
 // Workflow Step endpoints
 export const STEP_ENDPOINTS = {
-  CREATE: (workflowId) => `${API_BASE}/workflow-definitions/${workflowId}/steps`,
+  CREATE: (stageId) => `${API_BASE}/workflow-definitions/stages/${stageId}/steps`,
   UPDATE: (stepId) => `${API_BASE}/workflow-definitions/steps/${stepId}`,
   UPDATE_DEFINITION: (workflowId, stepId) => `${API_BASE}/workflow-definitions/${workflowId}/steps/${stepId}`,
   DELETE: (stepId) => `${API_BASE}/workflow-definitions/steps/${stepId}`,

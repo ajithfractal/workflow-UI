@@ -9,6 +9,8 @@ import WorkItemList from './components/WorkItemList/WorkItemList'
 import WorkItemSubmitForm from './components/WorkItemSubmitForm/WorkItemSubmitForm'
 import WorkItemViewer from './components/WorkItemViewer/WorkItemViewer'
 import ApproverDashboard from './components/ApproverDashboard/ApproverDashboard'
+import LoginPage from './components/Auth/LoginPage'
+import ProtectedRoute from './components/Auth/ProtectedRoute'
 
 function MainApp() {
   const [selectedWorkflowId, setSelectedWorkflowId] = useState(null)
@@ -165,6 +167,15 @@ function App() {
             >
               Approvers
             </Button>
+            <Button
+              color="inherit"
+              onClick={() => {
+                localStorage.removeItem("accessToken")
+                navigate("/login", { replace: true })
+              }}
+            >
+              Logout
+            </Button>
           </Stack>
 
           {/* Dark / Light mode toggle */}
@@ -177,13 +188,27 @@ function App() {
       </AppBar>
       <Box component="main" sx={{ flex: 1, overflow: 'auto', bgcolor: 'background.default' }}>
         <Routes>
-          <Route path="/*" element={<MainApp />} />
+          {/* Public */}
+          <Route path="/login" element={<LoginPage />} />
+
+          {/* Protected */}
+          <Route
+            path="/*"
+            element={
+              <ProtectedRoute>
+                <MainApp />
+              </ProtectedRoute>
+            }
+          />
+
           <Route
             path="/approvers"
             element={
-              <Container maxWidth="xl" sx={{ py: 3 }}>
-                <ApproverDashboard />
-              </Container>
+              <ProtectedRoute>
+                <Container maxWidth="xl" sx={{ py: 3 }}>
+                  <ApproverDashboard />
+                </Container>
+              </ProtectedRoute>
             }
           />
         </Routes>
