@@ -51,8 +51,8 @@ export const useCreateWorkflow = () => {
   const queryClient = useQueryClient()
   
   return useMutation({
-    mutationFn: async ({ name, version, userId = 'system' }) => {
-      return await workflowApi.createWorkflow(name, version, userId)
+    mutationFn: async ({ name, version, userId = 'system', visualStructure = null }) => {
+      return await workflowApi.createWorkflow(name, version, userId, visualStructure)
     },
     onSuccess: (response) => {
       // Invalidate workflows list
@@ -86,6 +86,21 @@ export const useUpdateWorkflow = () => {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: workflowKeys.detail(variables.workflowId) })
       queryClient.invalidateQueries({ queryKey: workflowKeys.lists() })
+    },
+  })
+}
+
+// Update workflow visual structure mutation
+export const useUpdateWorkflowVisualStructure = () => {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: async ({ workflowId, visualStructure, name, version, userId = 'system' }) => {
+      return await workflowApi.updateWorkflowVisualStructure(workflowId, visualStructure, name, version, userId)
+    },
+    onSuccess: (_, variables) => {
+      // Invalidate workflow detail to refresh with new visual structure
+      queryClient.invalidateQueries({ queryKey: workflowKeys.detail(variables.workflowId) })
     },
   })
 }

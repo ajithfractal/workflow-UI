@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useMemo, useState } from 'react'
+import { useEffect, useCallback, useMemo, useState, useRef } from 'react'
 import ReactFlow, {
   Background,
   Controls,
@@ -10,7 +10,7 @@ import ReactFlow, {
 import 'reactflow/dist/style.css'
 import { Box, Alert, Typography, Fade, Button, Stack, Accordion, AccordionSummary, AccordionDetails, Dialog, DialogTitle, DialogContent, DialogActions, TextField, FormHelperText } from '@mui/material'
 import { ExpandMore } from '@mui/icons-material'
-import { useWorkflow, useCreateWorkflow, useUpdateWorkflow, useWorkflows } from '../../hooks/queries/useWorkflows'
+import { useWorkflow, useCreateWorkflow, useUpdateWorkflow, useUpdateWorkflowVisualStructure, useWorkflows } from '../../hooks/queries/useWorkflows'
 import { useWorkItems } from '../../hooks/queries/useWorkItems'
 import useWorkflowStore from '../../hooks/useWorkflow'
 import { useModal } from '../../hooks/useModal'
@@ -39,6 +39,7 @@ function WorkflowDesigner({ workflowId, onBack, onCreateWorkItem, onNavigateToWo
   const { data: workItemsForWorkflow = [], isLoading: isLoadingWorkItems } = useWorkItems(workflowId)
   const createWorkflowMutation = useCreateWorkflow()
   const updateWorkflowMutation = useUpdateWorkflow()
+  const updateVisualStructureMutation = useUpdateWorkflowVisualStructure()
   const { selectedStep, setSelectedStep } = useWorkflowStore()
   const { modal, showAlert, showConfirm, closeModal } = useModal()
 
@@ -70,23 +71,22 @@ function WorkflowDesigner({ workflowId, onBack, onCreateWorkItem, onNavigateToWo
     }
   }, [workflow, workflowId])
 
-  // Load visual positions from localStorage on mount
+  // Load visual positions from workflow.visualStructure (backend) on mount
   useEffect(() => {
-    if (workflowId) {
+    if (workflow?.visualStructure) {
       try {
-        const saved = localStorage.getItem(`workflow-positions-${workflowId}`)
-        if (saved) {
-          const parsed = JSON.parse(saved)
-          setVisualPositions(parsed)
-        }
+        // visualStructure should contain { positions: { [nodeId]: { x, y } } }
+        const positions = workflow.visualStructure?.positions || {}
+        setVisualPositions(positions)
       } catch (error) {
-        console.error('Failed to load visual positions from localStorage:', error)
+        console.error('Failed to load visual positions from workflow:', error)
+        setVisualPositions({})
       }
     } else {
-      // Clear visual positions when no workflow is selected
+      // Clear visual positions when no workflow or no visual structure
       setVisualPositions({})
     }
-  }, [workflowId])
+  }, [workflow?.visualStructure, workflow?.id])
 
   // Update nodes/edges when workflow stages change
   useEffect(() => {
@@ -101,6 +101,9 @@ function WorkflowDesigner({ workflowId, onBack, onCreateWorkItem, onNavigateToWo
         flowEdges,
         WORKFLOW_LAYOUT_CONFIG
       )
+      
+      // Note: Visual structure will be saved when user clicks "Save Workflow" button
+      // No auto-save - positions are tracked locally in visualPositions state
       
       // Apply custom colors and visual positions to nodes
       const nodesWithColorsAndPositions = layoutedNodes.map(node => {
@@ -149,6 +152,9 @@ function WorkflowDesigner({ workflowId, onBack, onCreateWorkItem, onNavigateToWo
           flowEdges,
           WORKFLOW_LAYOUT_CONFIG
         )
+        
+        // Note: Visual structure will be saved when user clicks "Save Workflow" button
+        // No auto-save - positions are tracked locally in visualPositions state
         
         setNodes(layoutedNodes)
         setEdges(layoutedEdges)
@@ -235,14 +241,10 @@ function WorkflowDesigner({ workflowId, onBack, onCreateWorkItem, onNavigateToWo
       }
     })
     
-    // Update visual positions state and save to localStorage
+    // Update visual positions state immediately for UI responsiveness
+    // Note: Visual structure will be saved when user clicks "Save Workflow" button
     if (hasPositionChanges && workflowId) {
       setVisualPositions(updatedPositions)
-      try {
-        localStorage.setItem(`workflow-positions-${workflowId}`, JSON.stringify(updatedPositions))
-      } catch (error) {
-        console.error('Failed to save visual positions to localStorage:', error)
-      }
     }
   }, [onNodesChange, visualPositions, workflowId])
   
@@ -282,18 +284,28 @@ function WorkflowDesigner({ workflowId, onBack, onCreateWorkItem, onNavigateToWo
       // Updating an existing workflow
       const nameChanged = workflowName !== workflow.name
       const versionChanged = workflowVersion !== workflow.version
+      
+      // Check if visual structure has changed (compare current positions with saved positions)
+      const currentVisualStructure = {
+        positions: visualPositions,
+        lastUpdated: new Date().toISOString(),
+      }
+      const savedPositions = workflow?.visualStructure?.positions || {}
+      const visualStructureChanged = JSON.stringify(visualPositions) !== JSON.stringify(savedPositions)
 
-      if (!nameChanged && !versionChanged) {
+      if (!nameChanged && !versionChanged && !visualStructureChanged) {
         showAlert('No changes to save.', 'info', 'No Changes')
         return
       }
 
       try {
+        // Update workflow with name, version, and visual structure
         await updateWorkflowMutation.mutateAsync({
           workflowId: workflow.id,
           updateData: {
             name: workflowName,
             version: workflowVersion,
+            visualStructure: currentVisualStructure,
           },
         })
         showAlert('Workflow updated successfully!', 'success', 'Success')
@@ -304,9 +316,19 @@ function WorkflowDesigner({ workflowId, onBack, onCreateWorkItem, onNavigateToWo
       // Creating a brand new workflow
       setIsSettingUp(true)
       try {
+        // Create initial visualStructure with start/end node positions
+        const initialVisualStructure = {
+          positions: {
+            start: { x: 400, y: 50 },
+            end: { x: 400, y: 200 },
+          },
+          lastUpdated: new Date().toISOString(),
+        }
+        
         const response = await createWorkflowMutation.mutateAsync({
           name: workflowName,
           version: workflowVersion,
+          visualStructure: initialVisualStructure,
         })
         // Extract the new workflow ID from response
         const newWorkflowId = typeof response === 'string'
@@ -404,9 +426,29 @@ function WorkflowDesigner({ workflowId, onBack, onCreateWorkItem, onNavigateToWo
     // Create a new version
     setIsCreatingVersion(true)
     try {
+      // Copy visualStructure from current workflow if it exists, otherwise create initial structure
+      let visualStructure
+      if (workflow?.visualStructure) {
+        // Copy existing visualStructure and update timestamp
+        visualStructure = {
+          ...workflow.visualStructure,
+          lastUpdated: new Date().toISOString(),
+        }
+      } else {
+        // Create initial structure with start/end node positions
+        visualStructure = {
+          positions: {
+            start: { x: 400, y: 50 },
+            end: { x: 400, y: 200 },
+          },
+          lastUpdated: new Date().toISOString(),
+        }
+      }
+      
       const response = await createWorkflowMutation.mutateAsync({
         name: currentName,
         version: nextVersion,
+        visualStructure: visualStructure,
       })
       // Extract the actual workflow ID from the response
       // API may return a string ID, or an object like { workflowId: "...", ... }

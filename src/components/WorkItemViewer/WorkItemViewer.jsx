@@ -92,22 +92,21 @@ function WorkItemViewer({ workItemId, onBack }) {
   const [edges, setEdges, onEdgesChange] = useEdgesState([])
   const [visualPositions, setVisualPositions] = useState({})
 
-  // Load visual positions from localStorage (same as WorkflowDesigner)
+  // Load visual positions from workflow.visualStructure (backend)
   useEffect(() => {
-    if (workflowId) {
+    if (workflow?.visualStructure) {
       try {
-        const saved = localStorage.getItem(`workflow-positions-${workflowId}`)
-        if (saved) {
-          const parsed = JSON.parse(saved)
-          setVisualPositions(parsed)
-        }
+        // visualStructure should contain { positions: { [nodeId]: { x, y } } }
+        const positions = workflow.visualStructure?.positions || {}
+        setVisualPositions(positions)
       } catch (error) {
-        console.error('Failed to load visual positions from localStorage:', error)
+        console.error('Failed to load visual positions from workflow:', error)
+        setVisualPositions({})
       }
     } else {
       setVisualPositions({})
     }
-  }, [workflowId])
+  }, [workflow?.visualStructure])
 
   // Build diagram from workflow definition, then overlay progress status
   useEffect(() => {

@@ -106,10 +106,16 @@ export const workflowApi = {
   },
 
   // Create new workflow
-  createWorkflow: async (name, version, userId = 'system') => {
+  createWorkflow: async (name, version, userId = 'system', visualStructure = null) => {
+    // If visualStructure is not provided, create initial structure with empty positions
+    const initialVisualStructure = visualStructure || {
+      positions: {},
+      lastUpdated: new Date().toISOString(),
+    }
+    
     const response = await api.post(
       WORKFLOW_ENDPOINTS.CREATE,
-      { name, version },
+      { name, version, visualStructure: initialVisualStructure },
       { params: { [QUERY_PARAMS.CREATED_BY]: userId } }
     )
     return response.data
@@ -246,6 +252,21 @@ export const workflowApi = {
     const response = await api.put(
       WORKFLOW_ENDPOINTS.UPDATE(workflowId),
       updateData,
+      { params: { [QUERY_PARAMS.UPDATED_BY]: userId } }
+    )
+    return response.data
+  },
+
+  // Update workflow visual structure (node positions, layout data)
+  // Note: Backend requires name and version, so we need to include them
+  updateWorkflowVisualStructure: async (workflowId, visualStructure, name, version, userId = 'system') => {
+    const response = await api.put(
+      WORKFLOW_ENDPOINTS.UPDATE(workflowId),
+      { 
+        name,
+        version,
+        visualStructure 
+      },
       { params: { [QUERY_PARAMS.UPDATED_BY]: userId } }
     )
     return response.data

@@ -32,6 +32,8 @@ export const mapWorkflowToUI = (backendWorkflow) => {
     stages: backendWorkflow.stages?.map(mapStageToUI) || [],
     // Legacy support: flatten stages to steps for backward compatibility
     steps: backendWorkflow.stages?.flatMap(stage => stage.steps?.map(mapStepToUI) || []) || [],
+    // Visual structure for diagram layout (node positions, etc.)
+    visualStructure: backendWorkflow.visualStructure || null,
   }
 }
 
