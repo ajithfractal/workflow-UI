@@ -8,7 +8,6 @@ import {
   WORK_ITEM_ENDPOINTS,
   WORKFLOW_EXECUTION_ENDPOINTS,
   TASK_ENDPOINTS,
-  QUERY_PARAMS,
 } from '../constants/apiEndpoints'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
@@ -20,7 +19,19 @@ const api = axios.create({
   },
 })
 
-
+// Request interceptor — add JWT token to all requests
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('accessToken')
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
+    }
+    return config
+  },
+  (error) => {
+    return Promise.reject(error)
+  }
+)
 
 // Response interceptor — extract backend error message for all API calls
 api.interceptors.response.use(
@@ -113,10 +124,10 @@ export const workflowApi = {
       lastUpdated: new Date().toISOString(),
     }
     
+    // Username is now extracted from JWT token automatically
     const response = await api.post(
       WORKFLOW_ENDPOINTS.CREATE,
-      { name, version, visualStructure: initialVisualStructure },
-      { params: { [QUERY_PARAMS.CREATED_BY]: userId } }
+      { name, version, visualStructure: initialVisualStructure }
     )
     return response.data
   },
@@ -125,20 +136,20 @@ export const workflowApi = {
 
   // Create stage
   createStage: async (workflowId, stageData, userId = 'system') => {
+    // Username is now extracted from JWT token automatically
     const response = await api.post(
       STAGE_ENDPOINTS.CREATE(workflowId),
-      stageData,
-      { params: { [QUERY_PARAMS.CREATED_BY]: userId } }
+      stageData
     )
     return response.data
   },
 
   // Update stage
   updateStage: async (stageId, stageData, userId = 'system') => {
+    // Username is now extracted from JWT token automatically
     const response = await api.put(
       STAGE_ENDPOINTS.UPDATE(stageId),
-      stageData,
-      { params: { [QUERY_PARAMS.UPDATED_BY]: userId } }
+      stageData
     )
     return response.data
   },
@@ -153,30 +164,30 @@ export const workflowApi = {
 
   // Add step to stage
   addStep: async (stageId, stepData, userId = 'system') => {
+    // Username is now extracted from JWT token automatically
     const response = await api.post(
       STEP_ENDPOINTS.CREATE(stageId),
-      stepData,
-      { params: { [QUERY_PARAMS.CREATED_BY]: userId } }
+      stepData
     )
     return response.data
   },
 
   // Update step (legacy endpoint - kept for backward compatibility)
   updateStep: async (stepId, stepData, userId = 'system') => {
+    // Username is now extracted from JWT token automatically
     const response = await api.put(
       STEP_ENDPOINTS.UPDATE(stepId),
-      stepData,
-      { params: { [QUERY_PARAMS.UPDATED_BY]: userId } }
+      stepData
     )
     return response.data
   },
 
   // Update step definition (new endpoint with workflowId)
   updateStepDefinition: async (workflowId, stepId, stepData, userId = 'system') => {
+    // Username is now extracted from JWT token automatically
     const response = await api.put(
       STEP_ENDPOINTS.UPDATE_DEFINITION(workflowId, stepId),
-      stepData,
-      { params: { [QUERY_PARAMS.UPDATED_BY]: userId } }
+      stepData
     )
     return response.data
   },
@@ -191,10 +202,10 @@ export const workflowApi = {
   addApprovers: async (stepId, approversArray, userId = 'system') => {
     // Ensure it's always an array
     const approvers = Array.isArray(approversArray) ? approversArray : [approversArray]
+    // Username is now extracted from JWT token automatically
     const response = await api.post(
       APPROVER_ENDPOINTS.ADD(stepId),
-      approvers,
-      { params: { [QUERY_PARAMS.CREATED_BY]: userId } }
+      approvers
     )
     return response.data
   },
@@ -217,10 +228,10 @@ export const workflowApi = {
       ...ruleData,
       stepDefinitionId: String(stepDefinitionId),
     }
+    // Username is now extracted from JWT token automatically
     const response = await api.post(
       STEP_RULE_ENDPOINTS.CREATE,
-      requestBody,
-      { params: { [QUERY_PARAMS.CREATED_BY]: userId } }
+      requestBody
     )
     return response.data
   },
@@ -233,10 +244,10 @@ export const workflowApi = {
 
   // Update rule
   updateStepRule: async (ruleId, ruleData, userId = 'system') => {
+    // Username is now extracted from JWT token automatically
     const response = await api.put(
       STEP_RULE_ENDPOINTS.UPDATE(ruleId),
-      ruleData,
-      { params: { [QUERY_PARAMS.UPDATED_BY]: userId } }
+      ruleData
     )
     return response.data
   },
@@ -249,10 +260,10 @@ export const workflowApi = {
 
   // Update workflow definition (name, version, etc.)
   updateWorkflow: async (workflowId, updateData, userId = 'system') => {
+    // Username is now extracted from JWT token automatically
     const response = await api.put(
       WORKFLOW_ENDPOINTS.UPDATE(workflowId),
-      updateData,
-      { params: { [QUERY_PARAMS.UPDATED_BY]: userId } }
+      updateData
     )
     return response.data
   },
@@ -260,14 +271,14 @@ export const workflowApi = {
   // Update workflow visual structure (node positions, layout data)
   // Note: Backend requires name and version, so we need to include them
   updateWorkflowVisualStructure: async (workflowId, visualStructure, name, version, userId = 'system') => {
+    // Username is now extracted from JWT token automatically
     const response = await api.put(
       WORKFLOW_ENDPOINTS.UPDATE(workflowId),
       { 
         name,
         version,
         visualStructure 
-      },
-      { params: { [QUERY_PARAMS.UPDATED_BY]: userId } }
+      }
     )
     return response.data
   },
@@ -280,20 +291,20 @@ export const workflowApi = {
 
   // Activate workflow
   activateWorkflow: async (workflowId, userId = 'system') => {
+    // Username is now extracted from JWT token automatically
     const response = await api.post(
       WORKFLOW_ENDPOINTS.ACTIVATE(workflowId),
-      null,
-      { params: { [QUERY_PARAMS.USER_ID]: userId } }
+      null
     )
     return response.data
   },
 
   // Deactivate workflow
   deactivateWorkflow: async (workflowId, userId = 'system') => {
+    // Username is now extracted from JWT token automatically
     const response = await api.post(
       WORKFLOW_ENDPOINTS.DEACTIVATE(workflowId),
-      null,
-      { params: { [QUERY_PARAMS.USER_ID]: userId } }
+      null
     )
     return response.data
   },
@@ -331,30 +342,30 @@ export const workflowApi = {
 
   // Create work item
   createWorkItem: async (workItemData, userId = 'system') => {
+    // Username is now extracted from JWT token automatically
     const response = await api.post(
       WORK_ITEM_ENDPOINTS.CREATE,
-      workItemData,
-      { params: { [QUERY_PARAMS.CREATED_BY]: userId } }
+      workItemData
     )
     return response.data
   },
 
   // Submit work item (requires request body)
   submitWorkItem: async (workItemId, submitRequest = {}, userId = 'system') => {
+    // Username is now extracted from JWT token automatically
     const response = await api.post(
       WORK_ITEM_ENDPOINTS.SUBMIT(workItemId),
-      submitRequest,
-      { params: { [QUERY_PARAMS.SUBMITTED_BY]: userId } }
+      submitRequest
     )
     return response.data
   },
 
   // Create and submit work item in one call
   createAndSubmitWorkItem: async (submitData, userId = 'system') => {
+    // Username is now extracted from JWT token automatically (previously used hardcoded "system")
     const response = await api.post(
       WORK_ITEM_ENDPOINTS.CREATE_AND_SUBMIT,
-      submitData,
-      { params: { [QUERY_PARAMS.SUBMITTED_BY]: userId } }
+      submitData
     )
     return response.data
   },
@@ -373,10 +384,10 @@ export const workflowApi = {
 
   // Archive work item
   archiveWorkItem: async (workItemId, userId = 'system') => {
+    // Username is now extracted from JWT token automatically
     const response = await api.post(
       WORK_ITEM_ENDPOINTS.ARCHIVE(workItemId),
-      null,
-      { params: { [QUERY_PARAMS.USER_ID]: userId } }
+      null
     )
     return response.data
   },
@@ -439,31 +450,31 @@ export const workflowApi = {
 
   // Approve a task
   approveTask: async (taskId, comment = '', userId = 'system') => {
+    // Username is now extracted from JWT token automatically
     const response = await api.post(
       TASK_ENDPOINTS.APPROVE(taskId),
-      { comment },
-      { params: { [QUERY_PARAMS.USER_ID]: userId } }
+      { comment }
     )
     return response.data
   },
 
   // Reject a task
   rejectTask: async (taskId, comment = '', userId = 'system') => {
+    // Username is now extracted from JWT token automatically
     const response = await api.post(
       TASK_ENDPOINTS.REJECT(taskId),
-      { comment },
-      { params: { [QUERY_PARAMS.USER_ID]: userId } }
+      { comment }
     )
     return response.data
   },
 
   // Start workflow execution
   startWorkflow: async (workItemId, workflowDefId, userId = 'system') => {
+    // Username is now extracted from JWT token automatically
     // Build query string manually to ensure parameters are sent correctly
     const params = new URLSearchParams()
     params.append('workItemId', String(workItemId))
     params.append('workflowDefId', String(workflowDefId))
-    params.append('userId', String(userId))
     
     const url = `${WORKFLOW_EXECUTION_ENDPOINTS.START}?${params.toString()}`
     

@@ -170,7 +170,6 @@ function WorkItemList({ workflowId, onCreateWorkItem, onViewWorkItem, onBack }) 
             await startWorkflowMutation.mutateAsync({
               workItemId: String(workItemId),
               workflowDefId: String(workflowDefId),
-              userId: 'user_1',
             })
             showAlert('Workflow started successfully!', 'success', 'Success')
           } catch (error) {
@@ -199,7 +198,6 @@ function WorkItemList({ workflowId, onCreateWorkItem, onViewWorkItem, onBack }) 
       await startWorkflowMutation.mutateAsync({
         workItemId: String(startWorkflowWorkItemId),
         workflowDefId: String(selectedWorkflowDefId),
-        userId: 'user_1',
       })
       showAlert('Workflow started successfully!', 'success', 'Success')
       setShowStartWorkflowModal(false)

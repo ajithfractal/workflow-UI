@@ -313,7 +313,6 @@ function WorkItemViewer({ workItemId, onBack }) {
             await startWorkflowMutation.mutateAsync({
               workItemId: String(workItemId),
               workflowDefId: String(existingDefId),
-              userId: 'user_1',
             })
             showAlert('Workflow started successfully!', 'success', 'Success')
           } catch (error) {
@@ -339,7 +338,6 @@ function WorkItemViewer({ workItemId, onBack }) {
       await startWorkflowMutation.mutateAsync({
         workItemId: String(workItemId),
         workflowDefId: String(selectedWorkflowDefId),
-        userId: 'user_1',
       })
       showAlert('Workflow started successfully!', 'success', 'Success')
       setShowStartWorkflowModal(false)

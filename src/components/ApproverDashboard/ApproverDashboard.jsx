@@ -259,7 +259,6 @@ function ApproverDashboard() {
       await mutation.mutateAsync({
         taskId: selectedTask.taskId,
         comment: comment.trim(),
-        userId: activeApprover,
       })
       handleCloseAction()
       showAlert(
